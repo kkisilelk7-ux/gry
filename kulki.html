@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Kulki Pro (Animacje i Match-3)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #1a1a2e; color: white; display: flex; flex-direction: column; align-items: center; margin: 0; padding-top: 30px; }
+        .back-btn { position: absolute; top: 20px; left: 20px; background: #e74c3c; color: white; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; }
+        
+        .header { display: flex; justify-content: space-between; width: 440px; margin-bottom: 20px; font-size: 1.5rem; font-weight: bold; background: #16213e; padding: 15px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        #timer { color: #e74c3c; }
+        
+        #board { display: grid; grid-template-columns: repeat(8, 50px); grid-template-rows: repeat(8, 50px); gap: 5px; background: #0f3460; padding: 10px; border-radius: 10px; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        
+        .dot { 
+            width: 50px; height: 50px; border-radius: 50%; cursor: pointer; box-sizing: border-box; 
+            transition: transform 0.3s ease, opacity 0.3s ease; 
+            box-shadow: inset -5px -5px 10px rgba(0,0,0,0.4), inset 5px 5px 10px rgba(255,255,255,0.4); 
+            position: absolute; /* Absolute dla animacji opadania i zamiany */
+        }
+        
+        .selected { border: 4px solid white; transform: scale(1.15); box-shadow: 0 0 15px rgba(255,255,255,0.8); z-index: 10; }
+        .popping { transform: scale(0) rotate(90deg); opacity: 0; } /* Animacja znikania */
+
+        /* Ekran końca gry */
+        #game-over { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); border-radius: 10px; flex-direction: column; align-items: center; justify-content: center; z-index: 20; }
+        #game-over h2 { color: #e74c3c; margin: 0 0 10px 0; font-size: 2.5rem; }
+        #game-over button { padding: 10px 20px; font-size: 1.2rem; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    
+    <div class="header">
+        <div id="score">Punkty: 0</div>
+        <div id="timer">Czas: 30s</div>
+    </div>
+    
+    <div id="board">
+        <!-- Tło dla kratek -->
+        <script>
+            for(let i=0; i<64; i++) document.write(`<div style="width:50px; height:50px; background:rgba(0,0,0,0.2); border-radius:50%;"></div>`);
+        </script>
+        
+        <div id="game-over">
+            <h2>Koniec Czasu!</h2>
+            <p id="final-score" style="font-size:1.5rem;">Twój wynik: 0</p>
+            <button onclick="location.reload()">Zagraj ponownie</button>
+        </div>
+    </div>
+
+    <script>
+        const board = document.getElementById('board');
+        const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6'];
+        const size = 8; const cellSize = 55; // 50px + 5px gap
+        let grid = Array(64).fill(null);
+        let score = 0; let selectedDot = null; let isProcessing = false;
+        
+        let timeLeft = 30; let timerInterval;
+
+        function startTimer() {
+            clearInterval(timerInterval); timeLeft = 30;
+            document.getElementById('timer').innerText = `Czas: ${timeLeft}s`;
+            timerInterval = setInterval(() => {
+                timeLeft--; document.getElementById('timer').innerText = `Czas: ${timeLeft}s`;
+                if(timeLeft <= 0) {
+                    clearInterval(timerInterval); isProcessing = true;
+                    document.getElementById('game-over').style.display = 'flex';
+                    document.getElementById('final-score').innerText = `Twój wynik: ${score}`;
+                }
+            }, 1000);
+        }
+
+        // Inicjalizacja kulek bez gotowych trójek
+        for(let r=0; r<size; r++) {
+            for(let c=0; c<size; c++) {
+                let idx = r*size+c;
+                let validColors = colors.filter(col => {
+                    let horizMatch = c>=2 && grid[idx-1].color === col && grid[idx-2].color === col;
+                    let vertMatch = r>=2 && grid[idx-size].color === col && grid[idx-size*2].color === col;
+                    return !horizMatch && !vertMatch;
+                });
+                createDot(idx, validColors[Math.floor(Math.random()*validColors.length)]);
+            }
+        }
+        startTimer();
+
+        function createDot(idx, color) {
+            let dot = document.createElement('div');
+            dot.className = 'dot'; dot.style.backgroundColor = color;
+            dot.color = color; dot.idx = idx;
+            
+            // Pozycjonowanie absolutne dla animacji CSS
+            let r = Math.floor(idx/size), c = idx%size;
+            dot.style.left = `${c * cellSize + 10}px`; // +10 to padding planszy
+            dot.style.top = `${r * cellSize + 10}px`;
+            
+            dot.onclick = () => handleDotClick(dot);
+            board.appendChild(dot); grid[idx] = dot;
+            return dot;
+        }
+
+        function handleDotClick(dot) {
+            if(isProcessing) return;
+            startTimer();
+            
+            if(!selectedDot) {
+                selectedDot = dot; dot.classList.add('selected');
+            } else {
+                let diff = Math.abs(selectedDot.idx - dot.idx);
+                let sameRow = Math.floor(selectedDot.idx/size) === Math.floor(dot.idx/size);
+                
+                if((diff === 1 && sameRow) || diff === size) {
+                    // Animacja zamiany miejscami
+                    isProcessing = true;
+                    selectedDot.classList.remove('selected');
+                    swapDots(selectedDot, dot);
+                    
+                    setTimeout(() => {
+                        let matches = findMatches();
+                        if(matches.length > 0) {
+                            processMatches(matches);
+                            selectedDot = null;
+                        } else {
+                            // Brak dopasowania, cofnij animację
+                            swapDots(selectedDot, dot);
+                            selectedDot = null;
+                            setTimeout(() => { isProcessing = false; }, 300);
+                        }
+                    }, 300); // Czas trwania CSS transition
+                } else {
+                    selectedDot.classList.remove('selected');
+                    selectedDot = dot; dot.classList.add('selected');
+                }
+            }
+        }
+
+        function swapDots(d1, d2) {
+            let tempIdx = d1.idx; d1.idx = d2.idx; d2.idx = tempIdx;
+            grid[d1.idx] = d1; grid[d2.idx] = d2;
+            
+            let r1 = Math.floor(d1.idx/size), c1 = d1.idx%size;
+            let r2 = Math.floor(d2.idx/size), c2 = d2.idx%size;
+            
+            d1.style.left = `${c1 * cellSize + 10}px`; d1.style.top = `${r1 * cellSize + 10}px`;
+            d2.style.left = `${c2 * cellSize + 10}px`; d2.style.top = `${r2 * cellSize + 10}px`;
+        }
+
+        function findMatches() {
+            let matched = new Set();
+            for(let r=0; r<size; r++) for(let c=0; c<size-2; c++) {
+                let i = r*size+c;
+                if(grid[i] && grid[i+1] && grid[i+2] && grid[i].color === grid[i+1].color && grid[i].color === grid[i+2].color) {
+                    matched.add(grid[i]); matched.add(grid[i+1]); matched.add(grid[i+2]);
+                }
+            }
+            for(let c=0; c<size; c++) for(let r=0; r<size-2; r++) {
+                let i = r*size+c;
+                if(grid[i] && grid[i+size] && grid[i+size*2] && grid[i].color === grid[i+size].color && grid[i].color === grid[i+size*2].color) {
+                    matched.add(grid[i]); matched.add(grid[i+size]); matched.add(grid[i+size*2]);
+                }
+            }
+            return Array.from(matched);
+        }
+
+        function processMatches(matches) {
+            score += matches.length * 10;
+            document.getElementById('score').innerText = `Punkty: ${score}`;
+            startTimer(); // Sukces resetuje czas
+            
+            // Animacja wybuchu
+            matches.forEach(dot => {
+                dot.classList.add('popping');
+                grid[dot.idx] = null;
+            });
+
+            setTimeout(() => {
+                matches.forEach(dot => dot.remove()); // Usuń z DOM
+                applyGravity();
+            }, 300);
+        }
+
+        function applyGravity() {
+            for(let c=0; c<size; c++) {
+                let emptySpaces = 0;
+                for(let r=size-1; r>=0; r--) {
+                    let i = r*size+c;
+                    if(!grid[i]) {
+                        emptySpaces++;
+                    } else if(emptySpaces > 0) {
+                        let dot = grid[i];
+                        let newIdx = i + emptySpaces*size;
+                        dot.idx = newIdx; grid[newIdx] = dot; grid[i] = null;
+                        dot.style.top = `${Math.floor(newIdx/size) * cellSize + 10}px`;
+                    }
+                }
+                // Nowe kulki spadające z góry
+                for(let r=0; r<emptySpaces; r++) {
+                    let idx = r*size+c;
+                    let newDot = createDot(idx, colors[Math.floor(Math.random()*colors.length)]);
+                    newDot.style.top = `${(r - emptySpaces) * cellSize + 10}px`; // Ustaw powyżej planszy
+                    setTimeout(() => { newDot.style.top = `${r * cellSize + 10}px`; }, 50); // Animacja spadania
+                }
+            }
+
+            setTimeout(() => {
+                let newMatches = findMatches();
+                if(newMatches.length > 0) processMatches(newMatches); // Reakcja łańcuchowa!
+                else isProcessing = false;
+            }, 400);
+        }
+    </script>
+</body>
+</html>

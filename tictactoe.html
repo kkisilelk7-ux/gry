@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Kółko i Krzyżyk Pro ⭕</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --x-color: #ef4444; --o-color: #38bdf8; --text: #f8fafc; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; margin: 0; padding-top: 50px; user-select: none; }
+        .back-btn { position: absolute; top: 20px; left: 20px; background: #eab308; color: #000; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; transition: 0.2s;}
+        .back-btn:hover { background: #ca8a04; }
+
+        h1 { margin-bottom: 5px; font-size: 3rem; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        #status { font-size: 1.5rem; color: #94a3b8; margin-bottom: 30px; min-height: 35px; }
+
+        .board { display: grid; grid-template-columns: repeat(3, 120px); grid-template-rows: repeat(3, 120px); gap: 10px; background: #334155; padding: 10px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .cell { background: var(--panel); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 5rem; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: inset 0 -4px 0 rgba(0,0,0,0.2); }
+        .cell:hover { filter: brightness(1.2); }
+        .cell.x { color: var(--x-color); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .cell.o { color: var(--o-color); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+        /* Ekran Końcowy */
+        #game-over-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        .modal-content { background: var(--panel); padding: 40px; border-radius: 15px; text-align: center; border: 4px solid #facc15; box-shadow: 0 0 30px rgba(250, 204, 21, 0.4); animation: popIn 0.5s; }
+        .modal-content h1 { font-size: 3.5rem; margin: 0 0 20px 0; color: #facc15; }
+        .modal-content button { padding: 15px 30px; font-size: 1.2rem; background: #3b82f6; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .modal-content button:hover { background: #2563eb; transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    <h1>Kółko i Krzyżyk</h1>
+    <div id="status">Twój ruch (X)</div>
+
+    <div class="board" id="board">
+        <div class="cell" data-idx="0"></div><div class="cell" data-idx="1"></div><div class="cell" data-idx="2"></div>
+        <div class="cell" data-idx="3"></div><div class="cell" data-idx="4"></div><div class="cell" data-idx="5"></div>
+        <div class="cell" data-idx="6"></div><div class="cell" data-idx="7"></div><div class="cell" data-idx="8"></div>
+    </div>
+
+    <div id="game-over-modal">
+        <div class="modal-content">
+            <h1 id="end-title">Koniec!</h1>
+            <button onclick="location.reload()">Zagraj ponownie</button>
+        </div>
+    </div>
+
+    <script>
+        const cells = document.querySelectorAll('.cell');
+        const status = document.getElementById('status');
+        const modal = document.getElementById('game-over-modal');
+        const endTitle = document.getElementById('end-title');
+        
+        let board = ["", "", "", "", "", "", "", "", ""];
+        let gameActive = true;
+        const winConditions = [
+            [0,1,2], [3,4,5], [6,7,8], // Poziom
+            [0,3,6], [1,4,7], [2,5,8], // Pion
+            [0,4,8], [2,4,6]           // Skos
+        ];
+
+        cells.forEach(cell => cell.addEventListener('click', () => handlePlayerMove(cell)));
+
+        function handlePlayerMove(cell) {
+            const idx = cell.getAttribute('data-idx');
+            if (board[idx] !== "" || !gameActive) return;
+
+            board[idx] = "X";
+            cell.innerText = "X";
+            cell.classList.add('x');
+            
+            checkWin();
+            if (gameActive) {
+                gameActive = false; // Blokada klikania w turze bota
+                status.innerText = "Tura Bota (O)...";
+                setTimeout(botMove, 600);
+            }
+        }
+
+        function botMove() {
+            let emptyCells = [];
+            board.forEach((val, idx) => { if(val === "") emptyCells.push(idx); });
+            
+            if (emptyCells.length > 0) {
+                let randomIdx = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+                board[randomIdx] = "O";
+                cells[randomIdx].innerText = "O";
+                cells[randomIdx].classList.add('o');
+                gameActive = true;
+                status.innerText = "Twój ruch (X)";
+                checkWin();
+            }
+        }
+
+        function checkWin() {
+            let roundWon = false;
+            let winner = "";
+
+            for (let i = 0; i < winConditions.length; i++) {
+                const [a, b, c] = winConditions[i];
+                if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+                    roundWon = true;
+                    winner = board[a];
+                    break;
+                }
+            }
+
+            if (roundWon) {
+                endGame(winner === "X" ? "Wygrałeś! 🎉" : "Bot wygrywa! 💀", winner === "X" ? "#22c55e" : "#ef4444");
+                return;
+            }
+
+            if (!board.includes("")) {
+                endGame("Remis! 🤝", "#facc15");
+            }
+        }
+
+        function endGame(msg, color) {
+            gameActive = false;
+            status.innerText = "Koniec gry!";
+            endTitle.innerText = msg;
+            endTitle.style.color = color;
+            modal.style.display = 'flex';
+        }
+    </script>
+</body>
+</html>

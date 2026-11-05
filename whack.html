@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Uderz Kreta 🔨</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #65a30d; color: white; display: flex; flex-direction: column; align-items: center; margin: 0; padding-top: 30px; user-select: none; }
+        .back-btn { position: absolute; top: 20px; left: 20px; background: #1e293b; color: white; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; }
+        
+        h1 { margin: 0 0 10px 0; font-size: 3rem; text-shadow: 2px 2px #3f6212; }
+        .stats { display: flex; gap: 40px; background: #3f6212; padding: 15px 30px; border-radius: 10px; font-size: 1.5rem; font-weight: bold; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        #time { color: #facc15; }
+
+        .board { display: grid; grid-template-columns: repeat(3, 130px); gap: 20px; }
+        .hole { width: 130px; height: 130px; background: #422006; border-radius: 50%; position: relative; overflow: hidden; box-shadow: inset 0 10px 20px rgba(0,0,0,0.8), 0 5px 0 #3f6212; }
+        
+        /* POPRAWIONY KRET */
+        .mole { 
+            width: 100%; 
+            height: 100%; 
+            /* Używamy prostego SVG z zakodowanymi kolorami */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='65' r='40' fill='%23a16207'/%3E%3Ccircle cx='35' cy='50' r='5' fill='black'/%3E%3Ccircle cx='65' cy='50' r='5' fill='black'/%3E%3Cellipse cx='50' cy='65' rx='15' ry='10' fill='%23fef08a'/%3E%3Ccircle cx='50' cy='62' r='4' fill='black'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 80%;
+            position: absolute; 
+            top: 100%; 
+            transition: top 0.15s ease-out; 
+            cursor: crosshair; 
+        }
+        
+        .mole.up { top: 15%; }
+
+        #start-btn { margin-top: 30px; padding: 15px 40px; font-size: 1.5rem; background: #eab308; color: #422006; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; box-shadow: 0 5px 0 #ca8a04; transition: 0.1s;}
+        #start-btn:active { transform: translateY(5px); box-shadow: none; }
+
+        #game-over-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        .modal-content { background: #fef3c7; padding: 40px; border-radius: 15px; text-align: center; border: 4px solid #eab308; color: #422006; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    <h1>Uderz Kreta 🔨</h1>
+    
+    <div class="stats">
+        <div>Punkty: <span id="score">0</span></div>
+        <div>Czas: <span id="time">30</span>s</div>
+    </div>
+
+    <div class="board">
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+    </div>
+
+    <button id="start-btn" onclick="startGame()">START</button>
+
+    <div id="game-over-modal">
+        <div class="modal-content">
+            <h1>Koniec Czasu!</h1>
+            <h2>Uderzyłeś kreta <span id="final-score">0</span> razy.</h2>
+            <button onclick="location.reload()">Zagraj ponownie</button>
+        </div>
+    </div>
+
+    <script>
+        const moles = document.querySelectorAll('.mole');
+        const scoreBoard = document.getElementById('score');
+        const timeBoard = document.getElementById('time');
+        
+        let lastMole;
+        let timeUp = false;
+        let score = 0;
+        let countdown;
+        let moleTimer;
+
+        function randomTime(min, max) {
+            return Math.round(Math.random() * (max - min) + min);
+        }
+
+        function randomMole(molesList) {
+            const idx = Math.floor(Math.random() * molesList.length);
+            const mole = molesList[idx];
+            if (mole === lastMole) return randomMole(molesList);
+            lastMole = mole;
+            return mole;
+        }
+
+        function peep() {
+            const time = randomTime(500, 1000);
+            const mole = randomMole(moles);
+            mole.classList.add('up');
+            
+            moleTimer = setTimeout(() => {
+                mole.classList.remove('up');
+                if (!timeUp) peep();
+            }, time);
+        }
+
+        function startGame() {
+            document.getElementById('start-btn').style.display = 'none';
+            scoreBoard.textContent = 0;
+            timeBoard.textContent = 30;
+            timeUp = false;
+            score = 0;
+            let timeLeft = 30;
+            
+            peep();
+            
+            countdown = setInterval(() => {
+                timeLeft--;
+                timeBoard.textContent = timeLeft;
+                if(timeLeft <= 0) {
+                    clearInterval(countdown);
+                    timeUp = true;
+                    document.getElementById('final-score').innerText = score;
+                    setTimeout(() => document.getElementById('game-over-modal').style.display = 'flex', 500);
+                }
+            }, 1000);
+        }
+
+        function whack(e) {
+            if(!this.classList.contains('up')) return;
+            score++;
+            this.classList.remove('up');
+            scoreBoard.textContent = score;
+        }
+
+        moles.forEach(mole => mole.addEventListener('click', whack));
+    </script>
+</body>
+</html>

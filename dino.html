@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Dino Run 🦖</title>
+    <style>
+        body { background: #f8fafc; color: #334155; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; padding-top: 50px; overflow: hidden; }
+        .back-btn { position: absolute; top: 20px; left: 20px; background: #e74c3c; color: white; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; z-index: 100;}
+        
+        h1 { color: #1e293b; font-size: 3rem; margin-bottom: 0;}
+        #score-board { font-size: 1.5rem; font-weight: bold; margin-bottom: 20px; color: #64748b; }
+
+        /* Scena gry */
+        .game-area { width: 800px; height: 250px; border-bottom: 4px solid #475569; position: relative; overflow: hidden; }
+        
+        /* Dinozaur */
+        #dino { width: 44px; height: 47px; background: #10b981; border-radius: 5px 15px 5px 5px; position: absolute; top: 203px; left: 50px; }
+        #dino::after { content: '👁'; position: absolute; top: 5px; right: 5px; color: white; font-size: 12px; }
+        
+        .jump { animation: jumpAnim 0.5s linear; }
+        @keyframes jumpAnim {
+            0% { top: 203px; }
+            40% { top: 100px; }
+            50% { top: 90px; }
+            60% { top: 100px; }
+            100% { top: 203px; }
+        }
+
+        /* Przeszkoda (Kaktus) */
+        #cactus { width: 25px; height: 40px; background: #ef4444; border-radius: 5px 5px 0 0; position: absolute; top: 210px; left: 800px; }
+        
+        .move { animation: moveAnim 1.5s infinite linear; }
+        @keyframes moveAnim {
+            0% { left: 800px; }
+            100% { left: -50px; }
+        }
+
+        /* Ekran Końcowy */
+        #game-over-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        .modal-content { background: white; padding: 40px; border-radius: 15px; text-align: center; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        .modal-content h1 { font-size: 3rem; margin: 0 0 10px 0; color: #ef4444; }
+        .modal-content button { padding: 15px 30px; font-size: 1.2rem; background: #3b82f6; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 20px;}
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    <h1>🦖 Dino Run</h1>
+    <div id="score-board">Wynik: <span id="score">0</span></div>
+
+    <div class="game-area" id="game" onclick="jump()">
+        <div id="dino"></div>
+        <div id="cactus"></div>
+    </div>
+    <p style="color: #94a3b8; margin-top: 20px;">Naciśnij <b>SPACJĘ</b> lub kliknij w planszę, aby skoczyć!</p>
+
+    <div id="game-over-modal">
+        <div class="modal-content">
+            <h1>Auć! Zderzenie!</h1>
+            <h2>Wynik: <span id="final-score">0</span></h2>
+            <button onclick="location.reload()">Biegnij znowu</button>
+        </div>
+    </div>
+
+    <script>
+        const dino = document.getElementById("dino");
+        const cactus = document.getElementById("cactus");
+        const scoreEl = document.getElementById("score");
+        const modal = document.getElementById("game-over-modal");
+        
+        let isJumping = false;
+        let score = 0;
+        let gameActive = false;
+
+        function jump() {
+            if (!gameActive) {
+                // Pierwszy skok startuje grę
+                gameActive = true;
+                cactus.classList.add("move");
+            }
+            if (!isJumping) {
+                isJumping = true;
+                dino.classList.add("jump");
+                setTimeout(() => {
+                    dino.classList.remove("jump");
+                    isJumping = false;
+                }, 500); // Czas trwania animacji z CSS
+            }
+        }
+
+        document.addEventListener("keydown", (e) => {
+            if (e.code === "Space" || e.code === "ArrowUp") jump();
+        });
+
+        // Pętla sprawdzająca kolizję i wynik
+        let checkAlive = setInterval(function() {
+            if (!gameActive) return;
+
+            // Pobierz aktualne pozycje
+            let dinoTop = parseInt(window.getComputedStyle(dino).getPropertyValue("top"));
+            let cactusLeft = parseInt(window.getComputedStyle(cactus).getPropertyValue("left"));
+
+            // Sprawdzanie kolizji
+            if (cactusLeft > 50 && cactusLeft < 94 && dinoTop >= 163) {
+                // Kolizja!
+                cactus.style.animation = "none";
+                cactus.style.left = `${cactusLeft}px`; // Zatrzymaj kaktus w miejscu
+                
+                clearInterval(checkAlive);
+                gameActive = false;
+                
+                document.getElementById("final-score").innerText = Math.floor(score);
+                modal.style.display = "flex";
+            } else {
+                // Dodawaj punkty, jeśli gra trwa
+                score += 0.1;
+                scoreEl.innerText = Math.floor(score);
+                
+                // Przyspieszanie kaktusa z czasem
+                if (Math.floor(score) % 100 === 0 && score > 0) {
+                    let currentDur = parseFloat(window.getComputedStyle(cactus).animationDuration);
+                    if (currentDur > 0.8) {
+                        cactus.style.animationDuration = (currentDur - 0.1) + 's';
+                    }
+                }
+            }
+        }, 10);
+    </script>
+</body>
+</html>

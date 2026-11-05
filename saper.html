@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Saper Pro (Animacje, Poziomy, Ekran Końcowy)</title>
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --panel-bg: #16213e;
+            --cell-bg: #2c3e50;
+            --cell-hover: #34495e;
+            --cell-revealed: #ecf0f1;
+            --accent: #e94560;
+            --text: #ffffff;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; display: flex; flex-direction: column; align-items: center; background-color: var(--bg-color); color: var(--text); margin: 0; padding-top: 60px; }
+        
+        .back-btn { position: absolute; top: 20px; left: 20px; background: var(--accent); color: white; text-decoration: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .back-btn:hover { background: #d83a50; transform: translateY(-2px); }
+
+        h1 { margin-top: 0; color: var(--text); text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        
+        .controls { background: var(--panel-bg); padding: 15px 30px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.4); margin-bottom: 20px; display: flex; gap: 20px; align-items: center; }
+        select, button { padding: 10px 15px; font-size: 1rem; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        select { background: #fff; color: #333; outline: none; }
+        button { background: #27ae60; color: white; }
+        button:hover { background: #2ecc71; transform: translateY(-2px); }
+
+        #status { font-size: 1.2rem; font-weight: bold; min-height: 30px; color: #f1c40f; margin-bottom: 10px;}
+
+        #grid { display: grid; gap: 3px; background-color: #0f3460; padding: 5px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: all 0.3s ease; }
+        .cell { width: 35px; height: 35px; background-color: var(--cell-bg); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem; cursor: pointer; user-select: none; transition: background-color 0.2s, transform 0.1s; box-shadow: inset 0 -3px 0 rgba(0,0,0,0.2); }
+        .cell:hover { background-color: var(--cell-hover); }
+        .cell:active { transform: scale(0.95); }
+        
+        .cell.revealed { background-color: var(--cell-revealed); box-shadow: inset 0 2px 5px rgba(0,0,0,0.1); cursor: default; animation: popInCell 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popInCell { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+        .cell.bomb { background-color: #e74c3c; animation: shake 0.4s; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+        .cell.flag { background-color: #f39c12; }
+        .cell.flag::after { content: "🚩"; font-size: 18px; animation: popInCell 0.2s; }
+        
+        .n1 { color: #2980b9; } .n2 { color: #27ae60; } .n3 { color: #c0392b; } .n4 { color: #8e44ad; } .n5 { color: #d35400; } .n6 { color: #16a085; }
+
+        /* --- EKRAN KOŃCOWY --- */
+        #game-over-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        .modal-content { background: var(--panel-bg); padding: 40px; border-radius: 15px; text-align: center; border: 4px solid #f1c40f; box-shadow: 0 0 30px rgba(241, 196, 15, 0.4); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .modal-content h1 { font-size: 3.5rem; margin: 0 0 20px 0; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .modal-buttons { display: flex; gap: 15px; justify-content: center; margin-top: 20px;}
+        .modal-content button { padding: 15px 30px; font-size: 1.1rem; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s;}
+        .modal-content button:hover { background: #2980b9; transform: translateY(-2px);}
+        .modal-content .btn-secondary { background: #7f8c8d; }
+        .modal-content .btn-secondary:hover { background: #95a5a6; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    <h1>💣 Saper Pro</h1>
+    
+    <div class="controls">
+        <select id="difficulty" onchange="initGame()">
+            <option value="5,4">Łatwy (5x5, 4 miny)</option>
+            <option value="10,15" selected>Średni (10x10, 15 min)</option>
+            <option value="15,40">Trudny (15x15, 40 min)</option>
+            <option value="20,85">Ekstremalny (20x20, 85 min)</option>
+        </select>
+        <button onclick="initGame()">Restart</button>
+    </div>
+
+    <div id="status">Pozostało min: 15</div>
+    <div id="grid"></div>
+
+    <div id="game-over-modal">
+        <div class="modal-content" id="modal-box">
+            <h1 id="end-title">Koniec Gry</h1>
+            <p id="end-desc" style="font-size: 1.2rem;">Szczegóły.</p>
+            <div class="modal-buttons">
+                <button onclick="initGame(); closeModal();">Zagraj od nowa</button>
+                <button class="btn-secondary" onclick="closeModal()">Pokaż planszę</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let size = 10; let bombCount = 15; let grid = []; let gameOver = false;
+
+        function initGame() {
+            const diffValue = document.getElementById('difficulty').value.split(',');
+            size = parseInt(diffValue[0]); bombCount = parseInt(diffValue[1]);
+            const gridElement = document.getElementById('grid');
+            const status = document.getElementById('status');
+            
+            gridElement.style.gridTemplateColumns = `repeat(${size}, 35px)`;
+            gridElement.style.gridTemplateRows = `repeat(${size}, 35px)`;
+            gridElement.innerHTML = '';
+            grid = []; gameOver = false;
+            status.innerText = "Pozostało min: " + bombCount;
+
+            for (let r = 0; r < size; r++) {
+                grid[r] = [];
+                for (let c = 0; c < size; c++) {
+                    const cellDiv = document.createElement('div');
+                    cellDiv.classList.add('cell');
+                    cellDiv.addEventListener('click', () => { if (grid[r][c].revealed) chord(r, c); else reveal(r, c); });
+                    cellDiv.addEventListener('contextmenu', (e) => { e.preventDefault(); toggleFlag(r, c); });
+                    gridElement.appendChild(cellDiv);
+                    grid[r][c] = { isBomb: false, revealed: false, flagged: false, element: cellDiv };
+                }
+            }
+            let placedBombs = 0;
+            while (placedBombs < bombCount) {
+                let r = Math.floor(Math.random() * size); let c = Math.floor(Math.random() * size);
+                if (!grid[r][c].isBomb) { grid[r][c].isBomb = true; placedBombs++; }
+            }
+        }
+
+        function reveal(r, c) {
+            if (gameOver || grid[r][c].revealed || grid[r][c].flagged) return;
+            const cell = grid[r][c]; cell.revealed = true; cell.element.classList.add('revealed');
+            if (cell.isBomb) { endGame(false); return; }
+            const bombsAround = countNearby(r, c, 'isBomb');
+            if (bombsAround > 0) { cell.element.innerText = bombsAround; cell.element.classList.add('n' + bombsAround); } 
+            else {
+                for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+                    if (r+i >= 0 && r+i < size && c+j >= 0 && c+j < size) reveal(r+i, c+j);
+                }
+            } checkWin();
+        }
+
+        function toggleFlag(r, c) {
+            if (gameOver || grid[r][c].revealed) return;
+            grid[r][c].flagged = !grid[r][c].flagged;
+            grid[r][c].element.classList.toggle('flag');
+            let currentFlags = 0;
+            grid.forEach(row => row.forEach(cell => { if(cell.flagged) currentFlags++; }));
+            document.getElementById('status').innerText = `Pozostało min: ${bombCount - currentFlags}`;
+        }
+
+        function countNearby(r, c, property) {
+            let count = 0;
+            for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+                if (r+i >= 0 && r+i < size && c+j >= 0 && c+j < size) { if (grid[r+i][c+j][property]) count++; }
+            } return count;
+        }
+
+        function chord(r, c) {
+            if (gameOver || !grid[r][c].revealed) return;
+            const requiredFlags = countNearby(r, c, 'isBomb'); const currentFlags = countNearby(r, c, 'flagged');
+            if (requiredFlags > 0 && requiredFlags === currentFlags) {
+                for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+                    const nr = r + i; const nc = c + j;
+                    if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+                        if (!grid[nr][nc].revealed && !grid[nr][nc].flagged) reveal(nr, nc);
+                    }
+                }
+            }
+        }
+
+        function checkWin() {
+            let safeCellsRemaining = 0;
+            grid.forEach(row => row.forEach(cell => { if (!cell.isBomb && !cell.revealed) safeCellsRemaining++; }));
+            if (safeCellsRemaining === 0) endGame(true);
+        }
+
+        function endGame(won) {
+            gameOver = true;
+            grid.forEach(row => row.forEach(cell => {
+                if (cell.isBomb && !cell.flagged) {
+                    cell.element.classList.add('bomb', 'revealed'); cell.element.innerText = '💣';
+                } else if (cell.flagged && !cell.isBomb) {
+                    cell.element.innerText = '❌';
+                }
+            }));
+
+            // Pokaż modal z lekkim opóźnieniem
+            setTimeout(() => {
+                const modal = document.getElementById('game-over-modal');
+                document.getElementById('end-title').innerText = won ? "WYGRANA! 🎉" : "BOOM! 💥";
+                document.getElementById('end-title').style.color = won ? "#2ecc71" : "#e74c3c";
+                document.getElementById('end-desc').innerText = won ? "Rozbroiłeś wszystkie miny. Gratulacje!" : "Wszedłeś na minę. Zobacz gdzie się ukrywały.";
+                modal.style.display = 'flex';
+            }, 800);
+        }
+
+        function closeModal() {
+            document.getElementById('game-over-modal').style.display = 'none';
+        }
+
+        initGame();
+    </script>
+</body>
+</html>

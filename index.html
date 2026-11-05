@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centrum Klasycznych Gier</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a2e;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        h1 { color: #e94560; font-size: 3.5rem; margin-bottom: 10px; text-shadow: 0 4px 10px rgba(233, 69, 96, 0.4); }
+        p { font-size: 1.2rem; color: #a0aec0; margin-bottom: 30px; }
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            max-width: 900px;
+            width: 90%;
+        }
+        a {
+            background-color: #16213e;
+            color: white;
+            text-decoration: none;
+            padding: 30px 20px;
+            border-radius: 15px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+            border: 2px solid transparent;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        a:hover {
+            transform: translateY(-5px);
+            background-color: #0f3460;
+            border-color: #e94560;
+            box-shadow: 0 10px 20px rgba(233, 69, 96, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Pokój Gier</h1>
+    <p>Wybierz, w co chcesz dzisiaj zagrać:</p>
+    
+    <div class="menu-grid">
+        <a href="saper.html">💣 Saper</a>
+        <a href="statki.html">🚢 Statki</a>
+        <a href="warcaby.html">🔴 Warcaby</a>
+        <a href="szachy.html">♟️ Szachy</a>
+        <a href="kulki.html">🔮 Kulki</a>
+        <a href="pasjans.html">🃏 Pasjans</a>
+        <a href="snake.html">🐍 Snake</a>
+        <a href="2048.html">🔢 2048</a>
+        <a href="arkanoid.html">🧱 Arkanoid</a>
+        <a href="flappy.html">🐦 Flappy Bird</a>
+        <a href="tetris.html">🧩 Tetris</a>
+        <a href="pong.html">🏓 Pong</a>
+        <a href="invaders.html">👾 Space Invaders</a>
+        <a href="memory.html">🃏 Memory</a>
+        <a href="tictactoe.html">⭕ Kółko i Krzyżyk</a>
+        <a href="dino.html">🦖 Dino Run</a>
+        <a href="simon.html">🎨 Simon Says</a>
+        <a href="whack.html">🔨 Uderz Kreta</a>
+        <a href="clicker.html">💰 Clicker</a>
+        <a href="wisielec.html">🔤 Wisielec</a>
+        <a href="asteroids.html">☄️ Asteroidy</a>
+    </div>
+</body>
+</html>

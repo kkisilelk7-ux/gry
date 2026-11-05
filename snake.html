@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Snake Pro 🐍</title>
+    <style>
+        :root {
+            --bg: #0f172a; --panel: #1e293b; --board-bg: #020617; 
+            --snake-head: #22c55e; --snake-body: #16a34a; --food: #ef4444; --text: #f8fafc;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; margin: 0; padding-top: 20px; user-select: none; }
+        .back-btn { position: absolute; top: 20px; left: 20px; background: #e74c3c; color: white; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; transition: 0.2s; z-index: 100;}
+        .back-btn:hover { background: #dc2626; }
+
+        h1 { margin-top: 10px; color: #22c55e; text-shadow: 0 0 10px rgba(34, 197, 94, 0.5); margin-bottom: 5px;}
+        #score-board { font-size: 1.5rem; color: #facc15; font-weight: bold; margin-bottom: 20px; background: var(--panel); padding: 10px 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);}
+
+        .game-area { background: var(--panel); padding: 20px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center;}
+        
+        #board { display: grid; grid-template-columns: repeat(20, 20px); grid-template-rows: repeat(20, 20px); background: var(--board-bg); border: 4px solid #334155; border-radius: 5px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); }
+        
+        .cell { width: 20px; height: 20px; border-radius: 4px; }
+        .snake-head { background: var(--snake-head); box-shadow: 0 0 8px var(--snake-head); z-index: 2; transform: scale(1.1);}
+        .snake-body { background: var(--snake-body); border: 1px solid #14532d; }
+        .food { background: var(--food); box-shadow: 0 0 10px var(--food); border-radius: 50%; animation: pulse 1s infinite; }
+        
+        @keyframes pulse { 0% { transform: scale(0.8); } 50% { transform: scale(1.1); } 100% { transform: scale(0.8); } }
+
+        .instructions { font-size: 1rem; color: #94a3b8; margin-top: 15px; text-align: center; }
+
+        /* --- EKRAN KOŃCOWY --- */
+        #game-over-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        .modal-content { background: var(--panel); padding: 40px; border-radius: 15px; text-align: center; border: 4px solid #ef4444; box-shadow: 0 0 30px rgba(239, 68, 68, 0.4); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .modal-content h1 { font-size: 3.5rem; margin: 0 0 10px 0; color: #ef4444; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .modal-content h2 { font-size: 2rem; color: #facc15; margin-bottom: 20px;}
+        .modal-content button { padding: 15px 30px; font-size: 1.2rem; background: #22c55e; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s;}
+        .modal-content button:hover { background: #16a34a; transform: translateY(-2px);}
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    
+    <h1>🐍 Snake Pro</h1>
+    <div id="score-board">Punkty: <span id="score">0</span></div>
+
+    <div class="game-area">
+        <div id="board"></div>
+        <div class="instructions">Używaj <b>Strzałek</b> lub <b>W, A, S, D</b> do sterowania wężem.</div>
+    </div>
+
+    <div id="game-over-modal">
+        <div class="modal-content">
+            <h1>Koniec Gry! 💀</h1>
+            <h2>Twój wynik: <span id="final-score">0</span></h2>
+            <button onclick="location.reload()">Zagraj ponownie</button>
+        </div>
+    </div>
+
+    <script>
+        const board = document.getElementById('board');
+        const scoreEl = document.getElementById('score');
+        const finalScoreEl = document.getElementById('final-score');
+        const modal = document.getElementById('game-over-modal');
+        
+        const gridSize = 20;
+        let snake = [{ x: 10, y: 10 }]; // Początkowa pozycja
+        let food = { x: 5, y: 5 };
+        let dx = 0; let dy = 0; // Kierunek ruchu
+        let score = 0;
+        let gameSpeed = 150; // Początkowa prędkość w ms
+        let gameLoop;
+        let gameStarted = false;
+
+        // Inicjalizacja planszy (400 kratek)
+        for (let i = 0; i < gridSize * gridSize; i++) {
+            let cell = document.createElement('div');
+            cell.className = 'cell';
+            board.appendChild(cell);
+        }
+        const cells = document.querySelectorAll('.cell');
+
+        function draw() {
+            // Wyczyść planszę
+            cells.forEach(c => c.className = 'cell');
+            
+            // Rysuj jedzenie
+            cells[food.y * gridSize + food.x].classList.add('food');
+
+            // Rysuj węża
+            snake.forEach((segment, index) => {
+                let cellIndex = segment.y * gridSize + segment.x;
+                if (cellIndex >= 0 && cellIndex < cells.length) {
+                    cells[cellIndex].classList.add(index === 0 ? 'snake-head' : 'snake-body');
+                }
+            });
+        }
+
+        function moveSnake() {
+            if (dx === 0 && dy === 0) return; // Gra pauzuje zanim naciśniesz klawisz
+
+            let head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+            // Sprawdzenie kolizji ze ścianą
+            if (head.x < 0 || head.x >= gridSize || head.y < 0 || head.y >= gridSize) {
+                return gameOver();
+            }
+
+            // Sprawdzenie kolizji z samym sobą
+            if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+                return gameOver();
+            }
+
+            snake.unshift(head); // Dodaj nową głowę
+
+            // Zjedzenie jedzenia
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                scoreEl.innerText = score;
+                placeFood();
+                // Przyspieszanie węża z każdym jabłkiem (minimum 50ms)
+                if(gameSpeed > 50) {
+                    gameSpeed -= 3;
+                    clearInterval(gameLoop);
+                    gameLoop = setInterval(main, gameSpeed);
+                }
+            } else {
+                snake.pop(); // Usuń ogon, jeśli nic nie zjedzono
+            }
+        }
+
+        function placeFood() {
+            let emptyCells = [];
+            for(let x = 0; x < gridSize; x++) {
+                for(let y = 0; y < gridSize; y++) {
+                    if(!snake.some(s => s.x === x && s.y === y)) {
+                        emptyCells.push({x, y});
+                    }
+                }
+            }
+            if(emptyCells.length > 0) {
+                food = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+            }
+        }
+
+        function gameOver() {
+            clearInterval(gameLoop);
+            finalScoreEl.innerText = score;
+            modal.style.display = 'flex';
+        }
+
+        function main() {
+            moveSnake();
+            draw();
+        }
+
+        // Sterowanie
+        window.addEventListener('keydown', e => {
+            if(!gameStarted && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'].includes(e.key)) {
+                gameStarted = true;
+                gameLoop = setInterval(main, gameSpeed);
+            }
+            
+            // Zabezpieczenie przed pójściem w odwrotnym kierunku i zjedzeniem samego siebie
+            switch(e.key.toLowerCase()) {
+                case 'arrowup': case 'w': if(dy !== 1) { dx = 0; dy = -1; } break;
+                case 'arrowdown': case 's': if(dy !== -1) { dx = 0; dy = 1; } break;
+                case 'arrowleft': case 'a': if(dx !== 1) { dx = -1; dy = 0; } break;
+                case 'arrowright': case 'd': if(dx !== -1) { dx = 1; dy = 0; } break;
+            }
+        });
+
+        // Pierwsze rysowanie
+        draw();
+    </script>
+</body>
+</html>

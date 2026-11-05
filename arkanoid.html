@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Arkanoid Pro 🧱</title>
+    <style>
+        :root {
+            --bg: #0f172a; --panel: #1e293b; --text: #f8fafc;
+            --accent: #38bdf8; --danger: #ef4444; --success: #22c55e;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; margin: 0; padding-top: 20px; user-select: none; }
+        .back-btn { position: absolute; top: 20px; left: 20px; background: var(--danger); color: white; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; transition: 0.2s; z-index: 100;}
+        .back-btn:hover { background: #dc2626; }
+
+        h1 { margin-top: 10px; color: var(--accent); text-shadow: 0 0 10px rgba(56, 189, 248, 0.5); margin-bottom: 5px;}
+        
+        .stats-bar { display: flex; gap: 30px; margin-bottom: 20px; background: var(--panel); padding: 10px 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); font-size: 1.5rem; font-weight: bold; color: #facc15; }
+
+        /* Zwiększona wysokość canvas do 700px */
+        canvas { background: #020617; border: 4px solid #334155; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: block; margin: 0 auto; }
+
+        .instructions { font-size: 1rem; color: #94a3b8; margin-top: 15px; text-align: center; }
+
+        /* Ekran Końcowy */
+        #game-over-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        .modal-content { background: var(--panel); padding: 40px; border-radius: 15px; text-align: center; border: 4px solid var(--accent); box-shadow: 0 0 30px rgba(56, 189, 248, 0.4); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .modal-content h1 { font-size: 3.5rem; margin: 0 0 10px 0; color: white; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .modal-content button { padding: 15px 30px; font-size: 1.2rem; background: var(--accent); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; margin-top: 20px;}
+        .modal-content button:hover { background: #0284c7; transform: translateY(-2px);}
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    
+    <h1>🧱 Arkanoid Pro</h1>
+    <div class="stats-bar">
+        <div>Punkty: <span id="score">0</span></div>
+        <div style="color: var(--danger);">Życia: <span id="lives">3</span></div>
+    </div>
+
+    <!-- Zmieniona wysokość na 700 -->
+    <canvas id="gameCanvas" width="800" height="700"></canvas>
+    <div class="instructions">Używaj <b>Strzałek w lewo / prawo</b> lub <b>A / D</b>, aby poruszać paletką.</div>
+
+    <div id="game-over-modal">
+        <div class="modal-content">
+            <h1 id="end-title">Koniec Gry!</h1>
+            <h2 id="end-score" style="color: #facc15;">Twój wynik: 0</h2>
+            <button onclick="document.location.reload()">Zagraj ponownie</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreDisplay = document.getElementById("score");
+        const livesDisplay = document.getElementById("lives");
+        const modal = document.getElementById("game-over-modal");
+
+        // Zmienne piłki
+        let ballRadius = 8;
+        let x = canvas.width / 2;
+        let y = canvas.height - 40;
+        // Zmniejszona prędkość początkowa (było 4 i -4)
+        let dx = 3; 
+        let dy = -3;
+
+        // Zmienne paletki
+        let paddleHeight = 14; // Lekko pogrubiona paletka
+        let paddleWidth = 110; // Lekko poszerzona paletka dla ułatwienia
+        let paddleX = (canvas.width - paddleWidth) / 2;
+        let rightPressed = false;
+        let leftPressed = false;
+
+        // Zmienne cegieł
+        let brickRowCount = 5;
+        let brickColumnCount = 9;
+        let brickWidth = 75;
+        let brickHeight = 25;
+        let brickPadding = 10;
+        let brickOffsetTop = 80; // Obniżone cegły, by lepiej wyglądały na wyższym ekranie
+        let brickOffsetLeft = 20;
+        let bricks = [];
+        
+        const colors = ["#ef4444", "#f97316", "#facc15", "#22c55e", "#38bdf8"];
+
+        // Inicjalizacja cegieł
+        for (let c = 0; c < brickColumnCount; c++) {
+            bricks[c] = [];
+            for (let r = 0; r < brickRowCount; r++) {
+                bricks[c][r] = { x: 0, y: 0, status: 1, color: colors[r] };
+            }
+        }
+
+        let score = 0;
+        let lives = 3;
+        let gameActive = true;
+
+        // Nasłuchiwacze klawiatury
+        document.addEventListener("keydown", keyDownHandler, false);
+        document.addEventListener("keyup", keyUpHandler, false);
+
+        function keyDownHandler(e) {
+            if (e.key == "Right" || e.key == "ArrowRight" || e.key.toLowerCase() == "d") rightPressed = true;
+            else if (e.key == "Left" || e.key == "ArrowLeft" || e.key.toLowerCase() == "a") leftPressed = true;
+        }
+
+        function keyUpHandler(e) {
+            if (e.key == "Right" || e.key == "ArrowRight" || e.key.toLowerCase() == "d") rightPressed = false;
+            else if (e.key == "Left" || e.key == "ArrowLeft" || e.key.toLowerCase() == "a") leftPressed = false;
+        }
+
+        // Wykrywanie kolizji
+        function collisionDetection() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    let b = bricks[c][r];
+                    if (b.status == 1) {
+                        if (x > b.x && x < b.x + brickWidth && y > b.y && y < b.y + brickHeight) {
+                            dy = -dy;
+                            b.status = 0;
+                            score += 10;
+                            scoreDisplay.innerText = score;
+                            
+                            // Przyspieszanie piłki - delikatniejsze
+                            if(score % 100 === 0) {
+                                dx += (dx > 0 ? 0.3 : -0.3);
+                                dy += (dy > 0 ? 0.3 : -0.3);
+                            }
+
+                            if (score === brickRowCount * brickColumnCount * 10) {
+                                endGame(true);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Rysowanie elementów
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+            ctx.fillStyle = "#fff";
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#fff";
+            ctx.fill();
+            ctx.closePath();
+            ctx.shadowBlur = 0; 
+        }
+
+        function drawPaddle() {
+            ctx.beginPath();
+            ctx.rect(paddleX, canvas.height - paddleHeight - 20, paddleWidth, paddleHeight);
+            ctx.fillStyle = "#38bdf8";
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#38bdf8";
+            ctx.fill();
+            ctx.closePath();
+            ctx.shadowBlur = 0;
+        }
+
+        function drawBricks() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    if (bricks[c][r].status == 1) {
+                        let brickX = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
+                        let brickY = (r * (brickHeight + brickPadding)) + brickOffsetTop;
+                        bricks[c][r].x = brickX;
+                        bricks[c][r].y = brickY;
+                        
+                        ctx.beginPath();
+                        ctx.rect(brickX, brickY, brickWidth, brickHeight);
+                        ctx.fillStyle = bricks[c][r].color;
+                        ctx.fill();
+                        
+                        ctx.strokeStyle = "rgba(0,0,0,0.5)";
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(brickX, brickY, brickWidth, brickHeight);
+                        ctx.closePath();
+                    }
+                }
+            }
+        }
+
+        function endGame(isWin) {
+            gameActive = false;
+            document.getElementById("end-title").innerText = isWin ? "WYGRANA! 🎉" : "Koniec Gry 💀";
+            document.getElementById("end-title").style.color = isWin ? "#22c55e" : "#ef4444";
+            document.getElementById("end-score").innerText = "Twój wynik: " + score;
+            modal.style.display = "flex";
+        }
+
+        // Główna pętla gry
+        function draw() {
+            if (!gameActive) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height); 
+            drawBricks();
+            drawBall();
+            drawPaddle();
+            collisionDetection();
+
+            // Odbijanie od lewej/prawej ściany
+            if (x + dx > canvas.width - ballRadius || x + dx < ballRadius) {
+                dx = -dx;
+            }
+            // Odbijanie od sufitu
+            if (y + dy < ballRadius) {
+                dy = -dy;
+            } 
+            // Podłoga / Paletka
+            else if (y + dy > canvas.height - ballRadius - 20) {
+                if (x > paddleX && x < paddleX + paddleWidth) {
+                    // Modyfikator odbicia od paletki
+                    let hitPoint = x - (paddleX + paddleWidth / 2);
+                    dx = hitPoint * 0.1; // Zmniejszony kąt odchylenia dla łatwiejszego celowania
+                    dy = -dy;
+                } else if (y + dy > canvas.height - ballRadius) {
+                    lives--;
+                    livesDisplay.innerText = lives;
+                    if (!lives) {
+                        endGame(false);
+                    } else {
+                        // Reset pozycji po stracie życia z mniejszą prędkością
+                        x = canvas.width / 2;
+                        y = canvas.height - 40;
+                        dx = 3 * (Math.random() > 0.5 ? 1 : -1);
+                        dy = -3;
+                        paddleX = (canvas.width - paddleWidth) / 2;
+                    }
+                }
+            }
+
+            // Ruch paletki
+            if (rightPressed && paddleX < canvas.width - paddleWidth) {
+                paddleX += 7;
+            } else if (leftPressed && paddleX > 0) {
+                paddleX -= 7;
+            }
+
+            x += dx;
+            y += dy;
+
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+    </script>
+</body>
+</html>

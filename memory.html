@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Memory Extreme 🧠</title>
+    <style>
+        :root { 
+            --bg: #0f172a; 
+            --panel: #1e293b; 
+            --accent: #38bdf8; 
+            --success: #22c55e;
+            --text: #f8fafc; 
+        }
+
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            margin: 0; 
+            padding: 20px; 
+            user-select: none; 
+            min-height: 100vh;
+        }
+
+        .back-btn { 
+            position: absolute; top: 20px; left: 20px; 
+            background: #ef4444; color: white; text-decoration: none; 
+            padding: 10px 15px; border-radius: 5px; font-weight: bold; 
+        }
+
+        h1 { margin: 10px 0; color: var(--accent); text-shadow: 0 0 15px rgba(56, 189, 248, 0.3); }
+
+        .difficulty-selector {
+            margin-bottom: 20px;
+            display: flex; gap: 10px;
+            background: var(--panel); padding: 15px; border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .diff-btn {
+            padding: 10px 20px; border: none; border-radius: 8px;
+            cursor: pointer; font-weight: bold; background: #334155; color: white;
+            transition: 0.3s;
+        }
+
+        .diff-btn.active { background: var(--accent); color: #0f172a; box-shadow: 0 0 15px var(--accent); }
+
+        .stats { 
+            display: flex; gap: 40px; font-size: 1.3rem; margin-bottom: 20px; 
+            background: rgba(0,0,0,0.3); padding: 10px 30px; border-radius: 10px; 
+            border: 1px solid #334155;
+        }
+        
+        .grid { 
+            display: grid; 
+            gap: 10px; 
+            perspective: 1000px; 
+            margin-bottom: 40px;
+            justify-content: center;
+        }
+
+        .card { 
+            cursor: pointer; position: relative; 
+            transform-style: preserve-3d; transition: transform 0.4s; 
+        }
+
+        .card.flip, .card.matched { transform: rotateY(180deg); }
+        
+        .card.matched .face {
+            border: 3px solid var(--success);
+            background: #14532d;
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+            color: white;
+        }
+        
+        .face, .back { 
+            position: absolute; width: 100%; height: 100%; border-radius: 8px; 
+            backface-visibility: hidden; display: flex; align-items: center; 
+            justify-content: center; box-sizing: border-box;
+        }
+
+        .back { 
+            background: linear-gradient(135deg, #1e40af, #3b82f6); 
+            border: 2px solid #60a5fa; 
+        }
+
+        .back::after { content: '?'; color: rgba(255,255,255,0.2); font-weight: bold; font-size: 1.5rem; }
+
+        .face { 
+            background: #f8fafc; border: 2px solid var(--accent); 
+            transform: rotateY(180deg); color: #000;
+        }
+
+        #game-over-modal { 
+            display: none; position: fixed; top: 0; left: 0; 
+            width: 100%; height: 100%; background: rgba(0,0,0,0.9); 
+            z-index: 1000; flex-direction: column; align-items: center; justify-content: center; 
+        }
+
+        .modal-content { 
+            background: var(--panel); color: white; padding: 40px; 
+            border-radius: 20px; text-align: center; border: 4px solid var(--accent);
+        }
+
+        .modal-content button { 
+            padding: 12px 25px; background: var(--accent); color: #0f172a; 
+            border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    <h1>🧠 Memory Extreme</h1>
+
+    <div class="difficulty-selector">
+        <button class="diff-btn" onclick="startGame(4, this)">4 x 4 (Łatwy)</button>
+        <button class="diff-btn" onclick="startGame(6, this)">6 x 6 (Średni)</button>
+        <button class="diff-btn" onclick="startGame(8, this)">8 x 8 (Trudny)</button>
+    </div>
+
+    <div class="stats">
+        <div>Ruchy: <span id="moves">0</span></div>
+        <div>Czas: <span id="time">0</span>s</div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <div id="game-over-modal">
+        <div class="modal-content">
+            <h1 style="color:var(--accent)">Poziom Ukończony! 🏆</h1>
+            <h2 id="final-stats" style="font-weight: normal; margin-bottom: 10px;"></h2>
+            <button onclick="location.reload()">Zagraj ponownie</button>
+        </div>
+    </div>
+
+    <script>
+        const grid = document.getElementById('grid');
+        const movesEl = document.getElementById('moves');
+        const timeEl = document.getElementById('time');
+        const modal = document.getElementById('game-over-modal');
+
+        // Baza 32 unikalnych ikon dla trybu 8x8
+        const allIcons = [
+            '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼',
+            '🦁','🐯','🐨','🐷','🐸','🐵','🐔','🐧',
+            '🍎','🍌','🍉','🍓','🍕','🍔','🍟','🍦',
+            '⚽','🏀','🎮','🎸','🚀','🌈','💎','👻'
+        ];
+        
+        let hasFlippedCard = false;
+        let lockBoard = false;
+        let firstCard, secondCard;
+        let moves = 0;
+        let matches = 0;
+        let currentTotalPairs = 0;
+        let timer;
+        let seconds = 0;
+        let gameStarted = false;
+
+        function startGame(size, btn) {
+            document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+            if(btn) btn.classList.add('active');
+
+            clearInterval(timer);
+            gameStarted = false;
+            seconds = 0;
+            moves = 0;
+            matches = 0;
+            timeEl.innerText = "0";
+            movesEl.innerText = "0";
+            grid.innerHTML = "";
+
+            // Dobierz rozmiar karty w zależności od wielkości siatki
+            let cardSize;
+            let fontSize;
+            if (size === 4) { cardSize = 100; fontSize = "3rem"; }
+            else if (size === 6) { cardSize = 75; fontSize = "2.2rem"; }
+            else { cardSize = 58; fontSize = "1.8rem"; }
+
+            grid.style.gridTemplateColumns = `repeat(${size}, ${cardSize}px)`;
+            
+            const totalCards = size * size;
+            currentTotalPairs = totalCards / 2;
+
+            let selectedIcons = allIcons.slice(0, currentTotalPairs);
+            let cardsData = [...selectedIcons, ...selectedIcons];
+            cardsData.sort(() => Math.random() - 0.5);
+
+            cardsData.forEach(icon => {
+                const card = document.createElement('div');
+                card.classList.add('card');
+                card.style.width = cardSize + "px";
+                card.style.height = cardSize + "px";
+                card.dataset.icon = icon;
+                card.innerHTML = `
+                    <div class="face" style="font-size: ${fontSize}">${icon}</div>
+                    <div class="back"></div>
+                `;
+                card.addEventListener('click', flipCard);
+                grid.appendChild(card);
+            });
+        }
+
+        function flipCard() {
+            if (lockBoard || this.classList.contains('flip') || this.classList.contains('matched')) return;
+
+            if (!gameStarted) {
+                gameStarted = true;
+                timer = setInterval(() => { seconds++; timeEl.innerText = seconds; }, 1000);
+            }
+
+            this.classList.add('flip');
+
+            if (!hasFlippedCard) {
+                hasFlippedCard = true;
+                firstCard = this;
+                return;
+            }
+
+            secondCard = this;
+            moves++;
+            movesEl.innerText = moves;
+            
+            if (firstCard.dataset.icon === secondCard.dataset.icon) {
+                firstCard.classList.add('matched');
+                secondCard.classList.add('matched');
+                matches++;
+                if (matches === currentTotalPairs) {
+                    clearInterval(timer);
+                    setTimeout(() => {
+                        document.getElementById('final-stats').innerText = `Ruchy: ${moves} | Czas: ${seconds}s`;
+                        modal.style.display = 'flex';
+                    }, 500);
+                }
+                [hasFlippedCard, firstCard] = [false, null];
+            } else {
+                lockBoard = true;
+                setTimeout(() => {
+                    firstCard.classList.remove('flip');
+                    secondCard.classList.remove('flip');
+                    [hasFlippedCard, lockBoard, firstCard, secondCard] = [false, false, null, null];
+                }, 800);
+            }
+        }
+
+        // Start na 4x4
+        startGame(4, document.querySelector('.diff-btn'));
+    </script>
+</body>
+</html>

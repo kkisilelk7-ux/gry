@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Statki Pro (Inteligentny BOT)</title>
+    <style>
+        :root {
+            --bg: #0f172a; --panel: #1e293b; --board-bg: #0284c7; --cell-border: #38bdf8;
+            --ship-color: #10b981; --hit: #ef4444; --miss: #64748b; --text: #f8fafc;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; margin: 0; padding-top: 20px; user-select: none; }
+        .back-btn { position: absolute; top: 20px; left: 20px; background: var(--hit); color: white; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; transition: 0.2s; z-index: 100;}
+        .back-btn:hover { background: #dc2626; }
+
+        h1 { margin-top: 20px; color: #38bdf8; text-shadow: 0 0 10px rgba(56, 189, 248, 0.5); }
+        #status { font-size: 1.3rem; color: #facc15; font-weight: bold; margin-bottom: 20px; height: 30px; }
+
+        .game-wrapper { display: flex; gap: 40px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+        .board-section { display: flex; flex-direction: column; align-items: center; background: var(--panel); padding: 20px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+
+        .board-container { position: relative; width: 350px; height: 350px; }
+        .grid { display: grid; grid-template-columns: repeat(10, 35px); grid-template-rows: repeat(10, 35px); width: 350px; height: 350px; background: var(--board-bg); border: 2px solid var(--cell-border); box-sizing: border-box; }
+        .cell { width: 35px; height: 35px; border: 1px solid rgba(56, 189, 248, 0.3); box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; transition: 0.2s; position: relative; }
+        
+        #ai-board .cell { cursor: crosshair; }
+        #ai-board .cell:hover { background: rgba(255,255,255,0.2); }
+        .disabled { pointer-events: none; opacity: 0.6; filter: grayscale(50%); }
+
+        .dock { display: flex; flex-wrap: wrap; gap: 10px; width: 350px; min-height: 120px; margin-top: 20px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; justify-content: center; align-items: center; border: 2px dashed #475569; }
+        .ship { background: var(--ship-color); border: 2px solid #047857; border-radius: 20px; cursor: grab; display: flex; align-items: center; justify-content: center; position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; z-index: 10;}
+        .ship:active { cursor: grabbing; transform: scale(1.05); }
+        .ship::after { content: '↻'; color: rgba(255,255,255,0.5); font-size: 14px; position: absolute; pointer-events: none; }
+        .player-ship { background: var(--ship-color); box-shadow: inset 0 0 8px rgba(0,0,0,0.5); }
+
+        .hit { background: var(--hit) !important; color: white; animation: explodeAnim 0.4s ease-out; box-shadow: inset 0 0 15px rgba(0,0,0,0.6); }
+        .miss { background: var(--miss) !important; color: #cbd5e1; }
+        @keyframes explodeAnim { 0% { transform: scale(0.5); background: #facc15; } 50% { transform: scale(1.3); background: #f97316; } 100% { transform: scale(1); background: var(--hit); } }
+
+        .last-shot { z-index: 5; outline: 3px solid #facc15; outline-offset: -3px; animation: pulse-shot 1s infinite; }
+        @keyframes pulse-shot { 0% { outline-color: #facc15; } 50% { outline-color: #fff; } 100% { outline-color: #facc15; } }
+
+        .btn-start { margin-top: 15px; padding: 12px 25px; font-size: 1.2rem; font-weight: bold; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; display: none; }
+        .btn-start:hover { background: #1d4ed8; }
+        .instructions { font-size: 0.9rem; color: #94a3b8; margin-top: 10px; text-align: center; }
+
+        /* MODAL */
+        #game-over-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        .modal-content { background: var(--panel); padding: 40px; border-radius: 15px; text-align: center; border: 4px solid #f1c40f; box-shadow: 0 0 30px rgba(241, 196, 15, 0.4); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .modal-content h1 { font-size: 3.5rem; margin: 0 0 20px 0; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .modal-content button { padding: 15px 30px; font-size: 1.2rem; background: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px; font-weight: bold; transition: 0.2s;}
+        .modal-content button:hover { background: #1d4ed8; transform: translateY(-2px);}
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    <h1>🚢 Statki Pro (Smart BOT)</h1>
+    <div id="status">Faza Dowodzenia: Przeciągnij statki na planszę.</div>
+
+    <div class="game-wrapper">
+        <div class="board-section">
+            <h3 style="margin-top:0;">Twoja Flota</h3>
+            <div class="board-container" id="player-container">
+                <div class="grid" id="player-board"></div>
+            </div>
+            <div class="dock" id="dock"></div>
+            <div class="instructions" id="player-instr">Kliknij statek, aby go obrócić. <br>Możesz je swobodnie przestawiać na planszy.</div>
+            <button class="btn-start" id="start-btn" onclick="startBattle()">Zatwierdź Flotę i Walcz!</button>
+        </div>
+
+        <div class="board-section">
+            <h3 style="margin-top:0;">Wrogi Akwen</h3>
+            <div class="board-container">
+                <div class="grid disabled" id="ai-board"></div>
+            </div>
+            <div class="instructions" style="margin-top:10px;">Bot teraz myśli: po trafieniu szuka reszty statku!</div>
+        </div>
+    </div>
+
+    <div id="game-over-modal">
+        <div class="modal-content">
+            <h1 id="end-title">Koniec Gry</h1>
+            <p id="end-desc" style="font-size: 1.2rem;"></p>
+            <button onclick="location.reload()">Zagraj od nowa</button>
+        </div>
+    </div>
+
+    <script>
+        const fleetConfig = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1];
+        const cellSize = 35;
+        let pGrid = Array(100).fill(0); 
+        let aGrid = Array(100).fill(0);
+        let aShipsData = [], pShipsData = [];
+        let pCells = [], aCells = [];
+        let phase = 'setup'; 
+        let draggedShip = null;
+        let playerHits = 0, aiHits = 0;
+        const totalShipCells = 20;
+
+        // Logika BOTA
+        let aiAvailable = Array.from({length:100},(_,i)=>i);
+        let aiTargetQueue = []; // Tutaj bot trzyma pola do sprawdzenia po trafieniu
+
+        const dock = document.getElementById('dock');
+        const pBoard = document.getElementById('player-board');
+        const pContainer = document.getElementById('player-container');
+        const aBoard = document.getElementById('ai-board');
+
+        for(let i=0; i<100; i++) {
+            let pc = document.createElement('div'); pc.className = 'cell'; pc.dataset.idx = i;
+            pBoard.appendChild(pc); pCells.push(pc);
+
+            let ac = document.createElement('div'); ac.className = 'cell'; ac.dataset.idx = i;
+            ac.onclick = () => playerShoot(i, ac);
+            aBoard.appendChild(ac); aCells.push(ac);
+        }
+
+        pContainer.ondragover = (e) => e.preventDefault();
+        pContainer.ondrop = (e) => handleDropOnBoard(e);
+        dock.ondragover = (e) => e.preventDefault();
+        dock.ondrop = (e) => handleDropOnDock(e);
+
+        fleetConfig.forEach((len, id) => {
+            let ship = document.createElement('div');
+            ship.className = 'ship'; ship.draggable = true; ship.id = `ship-${id}`;
+            ship.dataset.len = len; ship.dataset.horiz = "true";
+            updateShipStyle(ship, len, true);
+            ship.ondragstart = (e) => { draggedShip = ship; setTimeout(() => ship.style.opacity = '0.5', 0); };
+            ship.ondragend = () => { ship.style.opacity = '1'; draggedShip = null; checkFleetReady(); };
+            ship.onclick = (e) => {
+                if(phase !== 'setup') return;
+                let isHoriz = ship.dataset.horiz === "true"; let newHoriz = !isHoriz;
+                if(ship.parentElement === pContainer) {
+                    let r = parseInt(ship.dataset.r); let c = parseInt(ship.dataset.c);
+                    removeShipFromGrid(ship.id); 
+                    if(canPlaceShip(pGrid, r, c, len, newHoriz)) {
+                        ship.dataset.horiz = newHoriz; updateShipStyle(ship, len, newHoriz); placeShipOnGrid(ship.id, r, c, len, newHoriz);
+                    } else {
+                        placeShipOnGrid(ship.id, r, c, len, isHoriz);
+                        ship.style.background = '#ef4444'; setTimeout(() => ship.style.background = 'var(--ship-color)', 200);
+                    }
+                } else { ship.dataset.horiz = newHoriz; updateShipStyle(ship, len, newHoriz); }
+            };
+            dock.appendChild(ship);
+        });
+
+        function updateShipStyle(ship, len, isHoriz) {
+            ship.style.width = isHoriz ? `${len * cellSize - 4}px` : `${cellSize - 4}px`;
+            ship.style.height = isHoriz ? `${cellSize - 4}px` : `${len * cellSize - 4}px`;
+        }
+
+        function removeShipFromGrid(shipId) { for(let i=0; i<100; i++) { if(pGrid[i] === shipId) pGrid[i] = 0; } }
+
+        function canPlaceShip(grid, row, col, len, isHoriz, ignoreId = null) {
+            if(isHoriz && col + len > 10) return false;
+            if(!isHoriz && row + len > 10) return false;
+            for(let i=0; i<len; i++) {
+                let currR = isHoriz ? row : row + i; let currC = isHoriz ? col + i : col;
+                for(let dr=-1; dr<=1; dr++) for(let dc=-1; dc<=1; dc++) {
+                    let nr = currR + dr, nc = currC + dc;
+                    if(nr>=0 && nr<10 && nc>=0 && nc<10) { let val = grid[nr*10 + nc]; if(val !== 0 && val !== ignoreId) return false; }
+                }
+            } return true;
+        }
+
+        function placeShipOnGrid(shipId, row, col, len, isHoriz) {
+            for(let i=0; i<len; i++) { let pos = isHoriz ? (row*10 + col + i) : ((row+i)*10 + col); pGrid[pos] = shipId; }
+        }
+
+        function handleDropOnBoard(e) {
+            if(!draggedShip || phase !== 'setup') return;
+            let rect = pContainer.getBoundingClientRect();
+            let x = e.clientX - rect.left; let y = e.clientY - rect.top;
+            let col = Math.floor(x / cellSize); let row = Math.floor(y / cellSize);
+            let len = parseInt(draggedShip.dataset.len); let isHoriz = draggedShip.dataset.horiz === "true";
+            if(draggedShip.parentElement === pContainer) removeShipFromGrid(draggedShip.id);
+            if(canPlaceShip(pGrid, row, col, len, isHoriz)) {
+                pContainer.appendChild(draggedShip); 
+                draggedShip.style.position = 'absolute'; draggedShip.style.left = `${col * cellSize + 2}px`; draggedShip.style.top = `${row * cellSize + 2}px`;
+                draggedShip.dataset.r = row; draggedShip.dataset.c = col;
+                placeShipOnGrid(draggedShip.id, row, col, len, isHoriz);
+            } else {
+                if(draggedShip.parentElement === pContainer) { let oldR = parseInt(draggedShip.dataset.r); let oldC = parseInt(draggedShip.dataset.c); placeShipOnGrid(draggedShip.id, oldR, oldC, len, isHoriz); }
+                draggedShip.style.background = '#ef4444'; setTimeout(() => draggedShip.style.background = 'var(--ship-color)', 200);
+            }
+        }
+
+        function handleDropOnDock(e) {
+            if(!draggedShip || phase !== 'setup') return;
+            if(draggedShip.parentElement === pContainer) removeShipFromGrid(draggedShip.id);
+            draggedShip.style.position = 'relative'; draggedShip.style.left = '0'; draggedShip.style.top = '0'; dock.appendChild(draggedShip);
+        }
+
+        function checkFleetReady() { document.getElementById('start-btn').style.display = dock.children.length === 0 ? 'block' : 'none'; }
+
+        function startBattle() {
+            phase = 'play'; document.getElementById('start-btn').style.display = 'none'; dock.style.display = 'none'; document.getElementById('player-instr').style.display = 'none';
+            document.getElementById('ai-board').classList.remove('disabled'); document.getElementById('status').innerText = "BITWA! Twój ruch.";
+            
+            // Mapowanie danych statków gracza dla bota
+            let processedShips = new Set();
+            pGrid.forEach((val, idx) => {
+                if(val !== 0 && !processedShips.has(val)) {
+                    let coords = [];
+                    pGrid.forEach((v, i) => { if(v === val) coords.push(i); });
+                    pShipsData.push({ id: val, coords: coords, hits: 0 });
+                    processedShips.add(val);
+                }
+            });
+
+            document.querySelectorAll('.ship').forEach(s => s.remove());
+            pGrid.forEach((val, idx) => { if(val !== 0) pCells[idx].classList.add('player-ship'); });
+            placeAIShips();
+        }
+
+        function placeAIShips() {
+            fleetConfig.forEach(len => {
+                let placed = false;
+                while(!placed) {
+                    let r = Math.floor(Math.random()*10); let c = Math.floor(Math.random()*10); let isHoriz = Math.random() > 0.5;
+                    if(canPlaceShip(aGrid, r, c, len, isHoriz)) {
+                        let coords = [];
+                        for(let i=0; i<len; i++) { let pos = isHoriz ? r*10+c+i : (r+i)*10+c; aGrid[pos] = 1; coords.push(pos); }
+                        aShipsData.push({ coords: coords, hits: 0 });
+                        placed = true;
+                    }
+                }
+            });
+        }
+
+        function markSurroundingMiss(grid, cellsDOM, shipCoords, availablePool) {
+            shipCoords.forEach(idx => {
+                let r = Math.floor(idx/10), c = idx%10;
+                for(let dr=-1; dr<=1; dr++) for(let dc=-1; dc<=1; dc++) {
+                    let nr = r+dr, nc = c+dc;
+                    if(nr>=0 && nr<10 && nc>=0 && nc<10) {
+                        let nIdx = nr*10+nc;
+                        if(!shipCoords.includes(nIdx) && !cellsDOM[nIdx].classList.contains('miss') && !cellsDOM[nIdx].classList.contains('hit')) {
+                            cellsDOM[nIdx].classList.add('miss'); cellsDOM[nIdx].innerText = 'X';
+                            if(availablePool) {
+                                let poolIdx = availablePool.indexOf(nIdx);
+                                if(poolIdx > -1) availablePool.splice(poolIdx, 1);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function playerShoot(idx, cell) {
+            if(phase !== 'play' || cell.classList.contains('hit') || cell.classList.contains('miss')) return;
+            aCells.forEach(c => c.classList.remove('last-shot'));
+            cell.classList.add('last-shot');
+
+            if(aGrid[idx] === 1) {
+                cell.classList.add('hit'); cell.innerText = '💥'; playerHits++;
+                let hitShip = aShipsData.find(s => s.coords.includes(idx)); hitShip.hits++;
+                if(hitShip.hits === hitShip.coords.length) markSurroundingMiss(aGrid, aCells, hitShip.coords, null);
+                if(playerHits >= totalShipCells) return endGame(true);
+                document.getElementById('status').innerText = "Trafiony! Strzelasz ponownie.";
+            } else { 
+                cell.classList.add('miss'); cell.innerText = 'X'; phase = 'ai'; aBoard.classList.add('disabled'); 
+                document.getElementById('status').innerText = "Pudło. Tura Wroga...";
+                setTimeout(aiShoot, 800);
+            }
+        }
+
+        function aiShoot() {
+            if(phase === 'end') return;
+            let targetIdx;
+
+            // INTELIGENCJA BOTA: Jeśli ma cele w kolejce, strzela tam. Jeśli nie, strzela losowo.
+            if(aiTargetQueue.length > 0) {
+                targetIdx = aiTargetQueue.shift();
+            } else {
+                let r = Math.floor(Math.random() * aiAvailable.length);
+                targetIdx = aiAvailable.splice(r, 1)[0];
+            }
+
+            // Upewnij się, że pole nie zostało wcześniej ostrzelane (np. przez zamazanie po zatopieniu)
+            let cell = pCells[targetIdx];
+            if(cell.classList.contains('hit') || cell.classList.contains('miss')) {
+                return aiShoot(); // Jeśli pole już zajęte, spróbuj następne
+            }
+
+            pCells.forEach(c => c.classList.remove('last-shot'));
+            cell.classList.add('last-shot');
+
+            if(pGrid[targetIdx] !== 0) { 
+                cell.classList.add('hit'); cell.innerText = '💥'; aiHits++;
+                let shipId = pGrid[targetIdx];
+                let hitShip = pShipsData.find(s => s.id === shipId);
+                hitShip.hits++;
+
+                // Jeśli trafiony, dodaj sąsiadów do kolejki celów (Góra, Dół, Lewo, Prawo)
+                let r = Math.floor(targetIdx/10), c = targetIdx%10;
+                [[r-1, c], [r+1, c], [r, c-1], [r, c+1]].forEach(([nr, nc]) => {
+                    if(nr>=0 && nr<10 && nc>=0 && nc<10) {
+                        let nIdx = nr*10 + nc;
+                        if(!pCells[nIdx].classList.contains('hit') && !pCells[nIdx].classList.contains('miss') && !aiTargetQueue.includes(nIdx)) {
+                            aiTargetQueue.push(nIdx);
+                        }
+                    }
+                });
+
+                if(hitShip.hits === hitShip.coords.length) {
+                    // Statek zatopiony! Wyczyść kolejkę celów (bo ten statek już nie istnieje)
+                    aiTargetQueue = []; 
+                    markSurroundingMiss(pGrid, pCells, hitShip.coords, aiAvailable);
+                }
+
+                if(aiHits >= totalShipCells) return endGame(false);
+                document.getElementById('status').innerText = "Bot trafił! Strzela znowu.";
+                setTimeout(aiShoot, 800);
+            } else { 
+                cell.classList.add('miss'); cell.innerText = 'X'; phase = 'play'; aBoard.classList.remove('disabled'); 
+                document.getElementById('status').innerText = "Bot spudłował! Twój ruch.";
+                // Usuń spudłowane pole z listy dostępnych, jeśli tam było
+                let poolIdx = aiAvailable.indexOf(targetIdx);
+                if(poolIdx > -1) aiAvailable.splice(poolIdx, 1);
+            }
+        }
+
+        function endGame(isWin) {
+            phase = 'end'; aBoard.classList.add('disabled');
+            const modal = document.getElementById('game-over-modal');
+            document.getElementById('end-title').innerText = isWin ? "ZWYCIĘSTWO! 🎉" : "KLĘSKA... 💀";
+            document.getElementById('end-title').style.color = isWin ? "#2ecc71" : "#ef4444";
+            document.getElementById('end-desc').innerText = isWin ? "Wroga flota spoczywa na dnie!" : "Wszystkie Twoje statki zostały zatopione.";
+            modal.style.display = 'flex';
+        }
+    </script>
+</body>
+</html>

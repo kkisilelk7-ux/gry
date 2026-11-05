@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Wisielec Pro 🔤</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --text: #f8fafc; --accent: #3b82f6; --danger: #ef4444; --success: #22c55e; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; margin: 0; padding-top: 30px; user-select: none; overflow-x: hidden; }
+        .back-btn { position: absolute; top: 20px; left: 20px; background: var(--danger); color: white; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; transition: 0.2s;}
+        .back-btn:hover { background: #dc2626; }
+        
+        h1 { margin: 0 0 5px 0; font-size: 3rem; color: var(--accent); }
+        .category-label { font-size: 1.5rem; color: #94a3b8; margin-bottom: 25px; font-weight: bold; background: rgba(0,0,0,0.3); padding: 10px 25px; border-radius: 10px; border: 1px solid #334155; }
+        .category-highlight { color: #facc15; }
+
+        .game-container { display: flex; gap: 40px; background: var(--panel); padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); align-items: center; width: 90%; max-width: 1000px; justify-content: center;}
+        
+        /* Szubienica SVG */
+        #hangman-drawing { width: 200px; height: 250px; stroke: #94a3b8; stroke-width: 4; fill: transparent; stroke-linecap: round; flex-shrink: 0; }
+        .part { opacity: 0; transition: opacity 0.3s; }
+        .part.visible { opacity: 1; }
+
+        .word-section { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
+        
+        /* ZMIANA TUTAJ: Wymuszenie 1 linijki i skalowanie czcionki */
+        #word-display { 
+            font-size: clamp(1.2rem, 3vw, 2.5rem); /* Zmniejsza się automatycznie, gdy brak miejsca */
+            font-weight: bold; 
+            letter-spacing: 6px; 
+            margin-bottom: 30px; 
+            text-transform: uppercase; 
+            text-align: center; 
+            white-space: nowrap; /* Wymusza jedną linię! */
+        }
+        
+        .keyboard { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 550px; }
+        .key { padding: 12px 18px; font-size: 1.2rem; font-weight: bold; background: #334155; color: white; border: none; border-radius: 5px; cursor: pointer; transition: 0.2s; }
+        .key:hover:not(:disabled) { background: #475569; transform: translateY(-2px); }
+        .key:disabled { opacity: 0.5; cursor: default; transform: none; }
+        .key.correct { background: var(--success); color: #000; }
+        .key.wrong { background: var(--danger); color: #fff; }
+
+        /* Ekran Końcowy */
+        #game-over-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        .modal-content { background: var(--panel); padding: 40px; border-radius: 15px; text-align: center; border: 4px solid var(--accent); }
+        .modal-content h1 { font-size: 3.5rem; margin: 0 0 10px 0; }
+        .modal-content button { padding: 15px 30px; font-size: 1.2rem; background: var(--accent); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 20px;}
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    <h1>🔤 Wisielec</h1>
+    <div class="category-label">Kategoria: <span class="category-highlight" id="category-display">Ładowanie...</span></div>
+
+    <div class="game-container">
+        <svg id="hangman-drawing">
+            <line x1="20" y1="240" x2="180" y2="240" class="part" id="part-0" />
+            <line x1="50" y1="240" x2="50" y2="20" class="part" id="part-1" />
+            <line x1="50" y1="20" x2="130" y2="20" class="part" id="part-2" />
+            <line x1="130" y1="20" x2="130" y2="50" class="part" id="part-3" />
+            <circle cx="130" cy="70" r="20" class="part" id="part-4" />
+            <line x1="130" y1="90" x2="130" y2="150" class="part" id="part-5" />
+            <line x1="130" y1="100" x2="100" y2="130" class="part" id="part-6" />
+            <line x1="130" y1="100" x2="160" y2="130" class="part" id="part-7" />
+            <line x1="130" y1="150" x2="100" y2="190" class="part" id="part-8" />
+            <line x1="130" y1="150" x2="160" y2="190" class="part" id="part-9" />
+        </svg>
+
+        <div class="word-section">
+            <div id="word-display">_ _ _ _ _</div>
+            <div class="keyboard" id="keyboard"></div>
+        </div>
+    </div>
+
+    <div id="game-over-modal">
+        <div class="modal-content">
+            <h1 id="end-title">Koniec!</h1>
+            <h2 style="color: #94a3b8;">Hasło to: <span id="correct-word" style="color: white;"></span></h2>
+            <button onclick="location.reload()">Zagraj ponownie</button>
+        </div>
+    </div>
+
+    <script>
+        const dictionary = [
+            // Informatyka
+            { word: "KOMPUTER", category: "Informatyka" }, { word: "KLAWIATURA", category: "Informatyka" },
+            { word: "ALGORYTM", category: "Informatyka" }, { word: "PROGRAMOWANIE", category: "Informatyka" },
+            { word: "PROCESOR", category: "Informatyka" }, { word: "PŁYTA GŁÓWNA", category: "Informatyka" },
+            { word: "KARTA GRAFICZNA", category: "Informatyka" }, { word: "INTERNET", category: "Informatyka" },
+            { word: "BAZA DANYCH", category: "Informatyka" }, { word: "APLIKACJA", category: "Informatyka" },
+            { word: "SYSTEM OPERACYJNY", category: "Informatyka" }, { word: "CHMURA OBLICZENIOWA", category: "Informatyka" },
+            { word: "ROUTER WI FI", category: "Informatyka" }, { word: "ŚWIATŁOWÓD", category: "Informatyka" },
+            { word: "SERWEROWNIA", category: "Informatyka" }, { word: "HASŁO DOSTĘPU", category: "Informatyka" },
+            { word: "MIKROFON", category: "Informatyka" }, { word: "KAMERA INTERNETOWA", category: "Informatyka" },
+            { word: "PAMIĘĆ RAM", category: "Informatyka" }, { word: "DYSK TWARDY", category: "Informatyka" },
+            { word: "PRZEGLĄDARKA", category: "Informatyka" }, { word: "SZTUCZNA INTELIGENCJA", category: "Informatyka" },
+            { word: "KOD ŹRÓDŁOWY", category: "Informatyka" }, { word: "CYBERBEZPIECZEŃSTWO", category: "Informatyka" },
+            
+            // Zwierzęta
+            { word: "KROKODYL", category: "Zwierzęta" }, { word: "NIEDŹWIEDŹ", category: "Zwierzęta" },
+            { word: "HIPOPOTAM", category: "Zwierzęta" }, { word: "KANGUR", category: "Zwierzęta" },
+            { word: "NOSOROŻEC", category: "Zwierzęta" }, { word: "SZYMPANS", category: "Zwierzęta" },
+            { word: "GORYL", category: "Zwierzęta" }, { word: "ŻYRAFA", category: "Zwierzęta" },
+            { word: "CHOMIK ZYGMUNT", category: "Zwierzęta" }, { word: "NIETOPERZ", category: "Zwierzęta" },
+            { word: "TYGRYS BENGALSKI", category: "Zwierzęta" }, { word: "SŁOŃ AFRYKAŃSKI", category: "Zwierzęta" },
+            { word: "ŻABA TRAWNA", category: "Zwierzęta" }, { word: "WĄŻ ZESZCZOWY", category: "Zwierzęta" },
+            { word: "PAJĄK KRZYŻAK", category: "Zwierzęta" }, { word: "REKIN LUDOJAD", category: "Zwierzęta" },
+            { word: "DELFIN BUTEKONOSY", category: "Zwierzęta" }, { word: "ORKA OCEANICZNA", category: "Zwierzęta" },
+            { word: "PINGWIN CESARSKI", category: "Zwierzęta" }, { word: "STRUŚ PĘDZIWIATR", category: "Zwierzęta" },
+            { word: "PAPUGA ARA", category: "Zwierzęta" }, { word: "ŚWINKA MORSKA", category: "Zwierzęta" },
+            { word: "KAMELEON", category: "Zwierzęta" }, { word: "BÓBR EUROPEJSKI", category: "Zwierzęta" },
+            { word: "ŁOŚ SUPERKTOŚ", category: "Zwierzęta" }, { word: "NIEDŹWIEDŹ POLARNY", category: "Zwierzęta" },
+            
+            // Państwa
+            { word: "HISZPANIA", category: "Państwa" }, { word: "AUSTRALIA", category: "Państwa" },
+            { word: "JAPONIA", category: "Państwa" }, { word: "ARGENTYNA", category: "Państwa" },
+            { word: "STANY ZJEDNOCZONE", category: "Państwa" }, { word: "MADAGASKAR", category: "Państwa" },
+            { word: "SZWECJA", category: "Państwa" }, { word: "PORTUGALIA", category: "Państwa" },
+            { word: "WIELKA BRYTANIA", category: "Państwa" }, { word: "NOWA ZELANDIA", category: "Państwa" },
+            { word: "NIEMCY", category: "Państwa" }, { word: "FRANCJA", category: "Państwa" },
+            { word: "WŁOCHY", category: "Państwa" }, { word: "MEKSYK", category: "Państwa" },
+            { word: "KANADA", category: "Państwa" }, { word: "BRAZYLIA", category: "Państwa" },
+            { word: "CHINY", category: "Państwa" }, { word: "INDIE", category: "Państwa" },
+            { word: "ROSJA", category: "Państwa" }, { word: "NORWEGIA", category: "Państwa" },
+            { word: "FINLANDIA", category: "Państwa" }, { word: "SZWAJCARIA", category: "Państwa" },
+            { word: "GRECJA", category: "Państwa" }, { word: "TURCJA", category: "Państwa" },
+            { word: "EGIPT", category: "Państwa" }, { word: "KOLUMBIA", category: "Państwa" },
+            
+            // Jedzenie
+            { word: "SPAGHETTI", category: "Jedzenie" }, { word: "HAMBURGER", category: "Jedzenie" },
+            { word: "NALEŚNIKI", category: "Jedzenie" }, { word: "ZAPIEKANKA", category: "Jedzenie" },
+            { word: "JAJECZNICA", category: "Jedzenie" }, { word: "TORT CZEKOLADOWY", category: "Jedzenie" },
+            { word: "FRYTKI", category: "Jedzenie" }, { word: "PIEROGI RUSKIE", category: "Jedzenie" },
+            { word: "SUSHI", category: "Jedzenie" }, { word: "ROSÓŁ Z MAKARONEM", category: "Jedzenie" },
+            { word: "PIZZA MARGHERITA", category: "Jedzenie" }, { word: "KEBAB NA CIENKIM", category: "Jedzenie" },
+            { word: "KOTLET SCHABOWY", category: "Jedzenie" }, { word: "BIGOS MYŚLIWSKI", category: "Jedzenie" },
+            { word: "GOŁĄBKI W SOSIE", category: "Jedzenie" }, { word: "MAKARON Z SEREM", category: "Jedzenie" },
+            { word: "KANAPKA Z SZYNKĄ", category: "Jedzenie" }, { word: "SAŁATKA GRECKA", category: "Jedzenie" },
+            { word: "ZUPA POMIDOROWA", category: "Jedzenie" }, { word: "KROKIETY Z MIĘSEM", category: "Jedzenie" },
+            { word: "SERNIK WIEDEŃSKI", category: "Jedzenie" }, { word: "SZARLOTKA Z LODAMI", category: "Jedzenie" },
+            { word: "LODY WANILIOWE", category: "Jedzenie" }, { word: "KIEŁBASA Z GRILLA", category: "Jedzenie" },
+            
+            // Pojazdy
+            { word: "HELIKOPTER", category: "Pojazdy" }, { word: "MOTOCYKL", category: "Pojazdy" },
+            { word: "LOKOMOTYWA", category: "Pojazdy" }, { word: "HULAJNOGA", category: "Pojazdy" },
+            { word: "SAMOLOT PASAŻERSKI", category: "Pojazdy" }, { word: "TRAMWAJ", category: "Pojazdy" },
+            { word: "ŻAGLOWIEC", category: "Pojazdy" }, { word: "KOPARKA", category: "Pojazdy" },
+            { word: "ROWER GÓRSKI", category: "Pojazdy" }, { word: "DESKOROLKA", category: "Pojazdy" },
+            { word: "TRAKTOR", category: "Pojazdy" }, { word: "CZOŁG", category: "Pojazdy" },
+            { word: "STATEK KOSMICZNY", category: "Pojazdy" }, { word: "MOTORÓWKA", category: "Pojazdy" },
+            { word: "KARETKA POGOTOWIA", category: "Pojazdy" }, { word: "WÓZ STRAŻACKI", category: "Pojazdy" },
+            { word: "RADIOWÓZ", category: "Pojazdy" }, { word: "CIĘŻARÓWKA", category: "Pojazdy" },
+            
+            // Sport
+            { word: "SIATKÓWKA", category: "Sport" }, { word: "KOSZYKÓWKA", category: "Sport" },
+            { word: "TENIS ZIEMNY", category: "Sport" }, { word: "PŁYWANIE", category: "Sport" },
+            { word: "LEKKOATLETYKA", category: "Sport" }, { word: "SZERMIERKA", category: "Sport" },
+            { word: "SKOKI NARCIARSKIE", category: "Sport" }, { word: "PIŁKA NOŻNA", category: "Sport" },
+            { word: "HOKEJ NA LODZIE", category: "Sport" }, { word: "GOLF", category: "Sport" },
+            { word: "BOKS ZAWODOWY", category: "Sport" }, { word: "KARATE", category: "Sport" },
+            { word: "JUDO", category: "Sport" }, { word: "GIMNASTYKA", category: "Sport" },
+            { word: "ŁYŻWIARSTWO FIGUROWE", category: "Sport" }, { word: "KOLARSTWO", category: "Sport" },
+            { word: "WIOŚLARSTWO", category: "Sport" }, { word: "TENIS STOŁOWY", category: "Sport" },
+            
+            // Zawody
+            { word: "PIELĘGNIARKA", category: "Zawody" }, { word: "STRAŻAK", category: "Zawody" },
+            { word: "NAUCZYCIEL", category: "Zawody" }, { word: "PROGRAMISTA", category: "Zawody" },
+            { word: "ARCHITEKT", category: "Zawody" }, { word: "POLICJANT", category: "Zawody" },
+            { word: "KIEROWCA AUTOBUSU", category: "Zawody" }, { word: "ASTRONAUTA", category: "Zawody" },
+            { word: "LEKARZ CHIRURG", category: "Zawody" }, { word: "DENTYSTA", category: "Zawody" },
+            { word: "PRAWNIK", category: "Zawody" }, { word: "SĘDZIA", category: "Zawody" },
+            { word: "FRYZJER", category: "Zawody" }, { word: "KELNER", category: "Zawody" },
+            { word: "KUCHARZ", category: "Zawody" }, { word: "PIEKARZ", category: "Zawody" },
+            { word: "ROLNIK", category: "Zawody" }, { word: "MECHANIK", category: "Zawody" },
+            { word: "ELEKTRYK", category: "Zawody" }, { word: "HYDRAULIK", category: "Zawody" },
+            
+            // Kosmos
+            { word: "PLANETA MARS", category: "Kosmos" }, { word: "GWIAZDA POLARNA", category: "Kosmos" },
+            { word: "GALAKTYKA", category: "Kosmos" }, { word: "SŁOŃCE", category: "Kosmos" },
+            { word: "KSIĘŻYC", category: "Kosmos" }, { word: "CZARNA DZIURA", category: "Kosmos" },
+            { word: "DROGA MLECZNA", category: "Kosmos" }, { word: "KOSMITA", category: "Kosmos" },
+            { word: "TELESKOP HUBBLEA", category: "Kosmos" }, { word: "ORBITA", category: "Kosmos" },
+            { word: "METEORYT", category: "Kosmos" }, { word: "KOMETA", category: "Kosmos" },
+            
+            // Muzyka
+            { word: "GITARA ELEKTRYCZNA", category: "Muzyka" }, { word: "FORTEPIAN", category: "Muzyka" },
+            { word: "PERKUSJA", category: "Muzyka" }, { word: "SKRZYPCE", category: "Muzyka" },
+            { word: "TRĄBKA", category: "Muzyka" }, { word: "FLET POPRZECZNY", category: "Muzyka" },
+            { word: "KONCERT ROCKOWY", category: "Muzyka" }, { word: "ZESPÓŁ MUZYCZNY", category: "Muzyka" },
+            { word: "PIOSENKA", category: "Muzyka" }, { word: "ŚPIEWAK OPEROWY", category: "Muzyka" },
+            { word: "ZAPIS NUTOWY", category: "Muzyka" }, { word: "SŁUCHAWKI", category: "Muzyka" },
+            
+            // Rośliny
+            { word: "DĄB BARTEK", category: "Rośliny" }, { word: "SOSNA", category: "Rośliny" },
+            { word: "TULIPAN", category: "Rośliny" }, { word: "RÓŻA", category: "Rośliny" },
+            { word: "SŁONECZNIK", category: "Rośliny" }, { word: "KAKTUS", category: "Rośliny" },
+            { word: "PAPROĆ", category: "Rośliny" }, { word: "MUCHOMOR", category: "Rośliny" },
+            { word: "ORCHIDEA", category: "Rośliny" }, { word: "KLON", category: "Rośliny" },
+            { word: "STOKROTKA", category: "Rośliny" }, { word: "MLECZ", category: "Rośliny" }
+        ];
+
+        let chosenData = dictionary[Math.floor(Math.random() * dictionary.length)];
+        let chosenWord = chosenData.word;
+        
+        let guessedLetters = [];
+        let mistakes = 0;
+        const maxMistakes = 10;
+        let isGameOver = false;
+
+        const wordDisplay = document.getElementById('word-display');
+        const categoryDisplay = document.getElementById('category-display');
+        const keyboard = document.getElementById('keyboard');
+        const modal = document.getElementById('game-over-modal');
+
+        function initGame() {
+            categoryDisplay.innerText = chosenData.category;
+            initKeyboard();
+            updateWordDisplay();
+        }
+
+        function initKeyboard() {
+            const letters = "AĄBCĆDEĘFGHIJKLŁMNŃOÓPQRSŚTUVWXYZŹŻ";
+            letters.split('').forEach(letter => {
+                const btn = document.createElement('button');
+                btn.className = 'key';
+                btn.id = `key-${letter}`; 
+                btn.innerText = letter;
+                btn.onclick = () => handleGuess(letter, btn);
+                keyboard.appendChild(btn);
+            });
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (isGameOver) return;
+            
+            const key = e.key.toUpperCase();
+            const validLetters = "AĄBCĆDEĘFGHIJKLŁMNŃOÓPQRSŚTUVWXYZŹŻ";
+            
+            if (validLetters.includes(key)) {
+                const btn = document.getElementById(`key-${key}`);
+                if (btn && !btn.disabled) {
+                    handleGuess(key, btn);
+                }
+            }
+        });
+
+        function updateWordDisplay() {
+            let display = chosenWord.split('').map(letter => {
+                if (letter === " ") return "\u00A0\u00A0"; 
+                return guessedLetters.includes(letter) ? letter : "_";
+            }).join(' ');
+            
+            wordDisplay.innerText = display;
+
+            if (!display.includes("_")) {
+                endGame(true);
+            }
+        }
+
+        function handleGuess(letter, btnEl) {
+            if (btnEl.disabled || isGameOver) return;
+            
+            btnEl.disabled = true;
+            guessedLetters.push(letter);
+
+            if (chosenWord.includes(letter)) {
+                btnEl.classList.add('correct');
+                updateWordDisplay();
+            } else {
+                btnEl.classList.add('wrong');
+                document.getElementById(`part-${mistakes}`).classList.add('visible');
+                mistakes++;
+                if (mistakes >= maxMistakes) {
+                    endGame(false);
+                }
+            }
+        }
+
+        function endGame(isWin) {
+            isGameOver = true;
+            document.getElementById('end-title').innerText = isWin ? "Wygrałeś! 🎉" : "Przegrałeś! 💀";
+            document.getElementById('end-title').style.color = isWin ? "var(--success)" : "var(--danger)";
+            document.getElementById('correct-word').innerText = chosenWord;
+            modal.style.display = 'flex';
+        }
+
+        initGame();
+    </script>
+</body>
+</html>

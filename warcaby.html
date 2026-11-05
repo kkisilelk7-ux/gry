@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Warcaby Pro (Damy, Zegary, Przymusowe Bicie)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #2c3e50; color: white; display: flex; flex-direction: column; align-items: center; margin: 0; padding-top: 20px; }
+        .back-btn { position: absolute; top: 20px; left: 20px; background: #e74c3c; color: white; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; z-index: 100;}
+        
+        .game-wrapper { display: flex; gap: 30px; margin-top: 40px; align-items: flex-start; justify-content: center; width: 100%; max-width: 1000px; }
+        .side-panel { background: #1a252f; padding: 15px; border-radius: 10px; width: 120px; min-height: 400px; border: 2px solid #5c4033; text-align: center; }
+        .side-panel h3 { margin-top: 0; font-size: 1rem; color: #f1c40f; border-bottom: 1px solid #5c4033; padding-bottom: 10px; }
+        .trophy-box { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; }
+        
+        .main-panel { display: flex; flex-direction: column; align-items: center; }
+        .timers { display: flex; justify-content: space-between; width: 100%; font-size: 1.5rem; font-weight: bold; margin-bottom: 10px; }
+        .timer { background: #34495e; padding: 10px 20px; border-radius: 5px; border: 2px solid transparent; transition: 0.3s; }
+        .timer.active { background: #27ae60; border-color: #2ecc71; transform: scale(1.05); }
+        
+        #status { font-size: 1.2rem; margin-bottom: 10px; font-weight: bold; color: #f1c40f; min-height: 25px; }
+        
+        #board { display: grid; grid-template-columns: repeat(8, 60px); border: 4px solid #5c4033; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .cell { width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; }
+        
+        .bg-dark { background: #8b4513; } /* Ciemna brzoza */
+        .bg-light { background: #deb887; } /* Jasna brzoza */
+        
+        .piece { width: 45px; height: 45px; border-radius: 50%; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.5); transition: 0.2s; display: flex; align-items: center; justify-content: center; font-size: 24px; user-select: none;}
+        .piece.white { background: #fdfdfd; border: 2px solid #ccc; }
+        .piece.black { background: #222; border: 2px solid #000; }
+        
+        /* Styl dla Damy */
+        .piece.king::after { content: '👑'; }
+        
+        .selected { outline: 4px solid #e74c3c; outline-offset: -4px; transform: scale(1.1); z-index: 10;}
+        .highlight { background-color: rgba(46, 204, 113, 0.6) !important; cursor: pointer; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);}
+        
+        .trophy-piece { width: 30px; height: 30px; border-radius: 50%; display: inline-block; margin: 2px; }
+        .trophy-piece.white { background: #fdfdfd; border: 1px solid #ccc; }
+        .trophy-piece.black { background: #222; border: 1px solid #000; }
+
+        /* Ekran Końcowy */
+        #game-over-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        .modal-content { background: #1a252f; padding: 40px; border-radius: 15px; text-align: center; border: 4px solid #f1c40f; box-shadow: 0 0 30px rgba(241, 196, 15, 0.4); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .modal-content h1 { font-size: 3.5rem; margin: 0 0 20px 0; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .modal-content button { padding: 15px 30px; font-size: 1.2rem; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px; font-weight: bold; transition: 0.2s;}
+        .modal-content button:hover { background: #2980b9; transform: translateY(-2px);}
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    
+    <div class="game-wrapper">
+        <div class="side-panel">
+            <h3>Zdobycze Bota</h3>
+            <div id="bot-trophies" class="trophy-box"></div>
+        </div>
+
+        <div class="main-panel">
+            <div class="timers">
+                <div id="bot-timer" class="timer">Bot: 08:00</div>
+                <div id="player-timer" class="timer active">Ty: 08:00</div>
+            </div>
+            <div id="status">Twój ruch (Białe)</div>
+            <div id="board"></div>
+            <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; font-weight:bold; background:#e74c3c; color:white; border:none; border-radius:5px; cursor:pointer;">Poddaj się / Restart</button>
+        </div>
+
+        <div class="side-panel">
+            <h3>Twoje Zdobycze</h3>
+            <div id="player-trophies" class="trophy-box"></div>
+        </div>
+    </div>
+
+    <div id="game-over-modal">
+        <div class="modal-content" id="modal-box">
+            <h1 id="end-title">Koniec Gry</h1>
+            <p id="end-desc" style="font-size: 1.2rem;">Szczegóły.</p>
+            <button onclick="location.reload()">Zagraj od nowa</button>
+        </div>
+    </div>
+
+    <script>
+        const board = document.getElementById('board');
+        let cells = []; let selectedPiece = null; let playerTurn = true; let gameActive = true;
+        let pTrophies = 0; let bTrophies = 0;
+        let pTime = 480; let bTime = 480; let timerInt;
+
+        function startTimers() {
+            timerInt = setInterval(() => {
+                if(!gameActive) return;
+                if(playerTurn) { pTime--; if(pTime<=0) endGame(false, "Czas minął! Wygrywa Bot."); }
+                else { bTime--; if(bTime<=0) endGame(true, "Czas Bota minął! Wygrywasz."); }
+                document.getElementById('player-timer').innerText = `Ty: ${Math.floor(pTime/60).toString().padStart(2,'0')}:${(pTime%60).toString().padStart(2,'0')}`;
+                document.getElementById('bot-timer').innerText = `Bot: ${Math.floor(bTime/60).toString().padStart(2,'0')}:${(bTime%60).toString().padStart(2,'0')}`;
+            }, 1000);
+        }
+
+        function endGame(isWin, desc) {
+            gameActive = false; clearInterval(timerInt);
+            const modal = document.getElementById('game-over-modal');
+            document.getElementById('end-title').innerText = isWin ? "WYGRANA! 🎉" : "PRZEGRANA 💀";
+            document.getElementById('end-title').style.color = isWin ? "#2ecc71" : "#e74c3c";
+            document.getElementById('end-desc').innerText = desc;
+            modal.style.display = 'flex';
+        }
+
+        for(let r=0; r<8; r++) {
+            cells[r] = [];
+            for(let c=0; c<8; c++) {
+                let cell = document.createElement('div');
+                let isDark = (r + c) % 2 !== 0;
+                cell.className = 'cell ' + (isDark ? 'bg-dark' : 'bg-light');
+                cell.dataset.r = r; cell.dataset.c = c;
+                
+                if(isDark && r < 3) cell.innerHTML = '<div class="piece black" data-type="ai" data-king="false"></div>';
+                if(isDark && r > 4) cell.innerHTML = '<div class="piece white" data-type="player" data-king="false"></div>';
+                
+                cell.onclick = () => handleCellClick(r, c);
+                board.appendChild(cell);
+                cells[r][c] = cell;
+            }
+        }
+        startTimers();
+
+        function getPiece(r, c) { return (r>=0&&r<8&&c>=0&&c<8) ? cells[r][c].querySelector('.piece') : null; }
+
+        // Sprawdzanie awansu na Damę
+        function checkPromotion(piece, r, isPlayer) {
+            if(isPlayer && r === 0 && piece.dataset.king === "false") {
+                piece.dataset.king = "true"; piece.classList.add('king');
+            }
+            if(!isPlayer && r === 7 && piece.dataset.king === "false") {
+                piece.dataset.king = "true"; piece.classList.add('king');
+            }
+        }
+
+        function getForcedCaptures(isPlayer) {
+            let moves = []; let type = isPlayer ? 'player' : 'ai';
+            for(let r=0; r<8; r++) for(let c=0; c<8; c++) {
+                let p = getPiece(r, c);
+                if(p && p.dataset.type === type) {
+                    let isKing = p.dataset.king === "true";
+                    let dirs = isKing ? [[-1,-1],[-1,1],[1,-1],[1,1]] : (isPlayer ? [[-1,-1],[-1,1]] : [[1,-1],[1,1]]);
+                    
+                    dirs.forEach(d => {
+                        let r1 = r+d[0], c1 = c+d[1], r2 = r+d[0]*2, c2 = c+d[1]*2;
+                        let enemy = getPiece(r1, c1);
+                        if(enemy && enemy.dataset.type !== type && cells[r2]?.[c2] && getPiece(r2,c2)===null) {
+                            moves.push({ fromR:r, fromC:c, toR:r2, toC:c2, capR:r1, capC:c1, piece:p });
+                        }
+                    });
+                }
+            } return moves;
+        }
+
+        function clearHighlights() { cells.forEach(row => row.forEach(c => c.classList.remove('highlight'))); }
+
+        function handleCellClick(r, c) {
+            if(!playerTurn || !gameActive) return;
+            let cell = cells[r][c]; let piece = getPiece(r, c);
+            let forced = getForcedCaptures(true);
+
+            if(piece && piece.dataset.type === 'player') {
+                if(forced.length > 0 && !forced.some(m => m.fromR===r && m.fromC===c)) { alert("Przymusowe bicie innym pionkiem!"); return; }
+                if(selectedPiece) selectedPiece.classList.remove('selected');
+                selectedPiece = piece; selectedPiece.classList.add('selected');
+                clearHighlights();
+                
+                let isKing = piece.dataset.king === "true";
+                let dirs = isKing ? [[-1,-1],[-1,1],[1,-1],[1,1]] : [[-1,-1],[-1,1]];
+
+                if(forced.length > 0) {
+                    forced.filter(m => m.fromR===r && m.fromC===c).forEach(m => cells[m.toR][m.toC].classList.add('highlight'));
+                } else {
+                    dirs.forEach(d => {
+                        let nr = r+d[0], nc = c+d[1];
+                        if(cells[nr]?.[nc] && getPiece(nr,nc)===null) cells[nr][nc].classList.add('highlight');
+                    });
+                } return;
+            }
+
+            if(selectedPiece && !piece && cell.classList.contains('bg-dark')) {
+                let fr = parseInt(selectedPiece.parentElement.dataset.r), fc = parseInt(selectedPiece.parentElement.dataset.c);
+                let isKing = selectedPiece.dataset.king === "true";
+                
+                // Zwykły ruch
+                let validNormalMove = false;
+                if(forced.length === 0) {
+                    if(!isKing && r === fr-1 && Math.abs(c-fc) === 1) validNormalMove = true;
+                    if(isKing && Math.abs(r-fr) === 1 && Math.abs(c-fc) === 1) validNormalMove = true;
+                }
+
+                if(validNormalMove) {
+                    cell.appendChild(selectedPiece);
+                    checkPromotion(selectedPiece, r, true);
+                    endTurn();
+                } 
+                // Bicie
+                else if(forced.length > 0) {
+                    let move = forced.find(m => m.fromR===fr && m.fromC===fc && m.toR===r && m.toC===c);
+                    if(move) {
+                        cells[move.capR][move.capC].innerHTML = ''; pTrophies++; updateTrophies();
+                        cell.appendChild(selectedPiece);
+                        checkPromotion(selectedPiece, r, true);
+                        
+                        // Sprawdź wielokrotne bicie
+                        if(getForcedCaptures(true).some(m => m.fromR===r && m.fromC===c)) {
+                            clearHighlights(); handleCellClick(r, c); return; 
+                        } endTurn();
+                    }
+                }
+            }
+        }
+
+        function updateTrophies() {
+            document.getElementById('player-trophies').innerHTML = Array(pTrophies).fill('<div class="trophy-piece black"></div>').join('');
+            document.getElementById('bot-trophies').innerHTML = Array(bTrophies).fill('<div class="trophy-piece white"></div>').join('');
+        }
+
+        function endTurn() {
+            if(selectedPiece) selectedPiece.classList.remove('selected');
+            selectedPiece = null; clearHighlights(); playerTurn = false;
+            document.getElementById('player-timer').classList.remove('active'); document.getElementById('bot-timer').classList.add('active');
+            document.getElementById('status').innerText = "Tura Bota...";
+            
+            // Sprawdź czy bot żyje
+            let botAlive = false; cells.forEach(row => row.forEach(c => { if(c.querySelector('.black')) botAlive=true; }));
+            if(!botAlive) { endGame(true, "Wybiłeś wszystkie pionki przeciwnika!"); return; }
+            setTimeout(aiMove, 600);
+        }
+
+        function aiMove() {
+            if(!gameActive) return;
+            let forced = getForcedCaptures(false);
+            if(forced.length > 0) {
+                let m = forced[Math.floor(Math.random()*forced.length)];
+                cells[m.toR][m.toC].appendChild(m.piece); cells[m.capR][m.capC].innerHTML = '';
+                bTrophies++; updateTrophies();
+                checkPromotion(m.piece, m.toR, false);
+                
+                if(getForcedCaptures(false).some(nm => nm.fromR===m.toR && nm.fromC===m.toC)) { setTimeout(aiMove, 600); return; }
+            } else {
+                let moves = [];
+                for(let r=0; r<8; r++) for(let c=0; c<8; c++) {
+                    let p = getPiece(r, c);
+                    if(p && p.dataset.type === 'ai') {
+                        let isKing = p.dataset.king === "true";
+                        let dirs = isKing ? [[-1,-1],[-1,1],[1,-1],[1,1]] : [[1,-1],[1,1]];
+                        
+                        dirs.forEach(d => {
+                            let nr = r+d[0], nc = c+d[1];
+                            if(cells[nr]?.[nc] && getPiece(nr,nc)===null) moves.push({p, nr, nc});
+                        });
+                    }
+                }
+                if(moves.length > 0) {
+                    let m = moves[Math.floor(Math.random()*moves.length)];
+                    cells[m.nr][m.nc].appendChild(m.p);
+                    checkPromotion(m.p, m.nr, false);
+                } else { 
+                    endGame(true, "Bot został zablokowany i nie ma ruchu!"); return; 
+                }
+            }
+            
+            let playerAlive = false; cells.forEach(row => row.forEach(c => { if(c.querySelector('.white')) playerAlive=true; }));
+            if(!playerAlive) { endGame(false, "Straciłeś wszystkie pionki."); return; }
+
+            playerTurn = true;
+            document.getElementById('bot-timer').classList.remove('active'); document.getElementById('player-timer').classList.add('active');
+            document.getElementById('status').innerText = "Twój ruch (Białe)";
+        }
+    </script>
+</body>
+</html>

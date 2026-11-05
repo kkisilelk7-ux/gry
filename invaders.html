@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Space Invaders Pro 👾</title>
+    <style>
+        :root { --bg: #020617; --panel: #0f172a; --text: #f8fafc; --accent: #22d3ee; --alien: #a3e635; --danger: #ef4444; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; margin: 0; padding-top: 20px; user-select: none; overflow: hidden;}
+        .back-btn { position: absolute; top: 20px; left: 20px; background: var(--danger); color: white; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; transition: 0.2s; z-index: 100;}
+        .back-btn:hover { background: #dc2626; }
+        h1 { margin-top: 10px; color: var(--accent); text-shadow: 0 0 10px rgba(34, 211, 238, 0.5); margin-bottom: 10px;}
+        .stats-bar { display: flex; gap: 30px; margin-bottom: 20px; font-size: 1.5rem; font-weight: bold; color: #facc15; }
+        canvas { background: #000; border: 4px solid #1e293b; border-radius: 8px; box-shadow: 0 0 30px rgba(34, 211, 238, 0.2); display: block; }
+        .instructions { font-size: 1rem; color: #94a3b8; margin-top: 15px; text-align: center; }
+
+        /* Ekran Końcowy */
+        #game-over-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        .modal-content { background: var(--panel); padding: 40px; border-radius: 15px; text-align: center; border: 4px solid var(--accent); box-shadow: 0 0 30px rgba(34, 211, 238, 0.4); }
+        .modal-content h1 { font-size: 3.5rem; margin: 0 0 10px 0; color: white; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .modal-content button { padding: 15px 30px; font-size: 1.2rem; background: var(--accent); color: #020617; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; margin-top: 20px;}
+        .modal-content button:hover { background: #06b6d4; transform: translateY(-2px);}
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    <h1>👾 Space Invaders Pro</h1>
+    <div class="stats-bar">
+        <div>Punkty: <span id="score">0</span></div>
+    </div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div class="instructions"><b>Strzałki L/P</b> - Ruch statkiem | <b>SPACJA</b> - Strzał</div>
+
+    <div id="game-over-modal">
+        <div class="modal-content">
+            <h1 id="end-title">Koniec Gry!</h1>
+            <h2 id="end-score" style="color: #facc15;">Twój wynik: 0</h2>
+            <button onclick="document.location.reload()">Zagraj ponownie</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreEl = document.getElementById("score");
+        const modal = document.getElementById("game-over-modal");
+
+        let gameActive = true;
+        let score = 0;
+
+        // Gracz
+        const player = { x: canvas.width / 2 - 25, y: canvas.height - 50, width: 50, height: 30, speed: 6, dx: 0 };
+        let bullets = [];
+        
+        // Obcy
+        let aliens = [];
+        const alienRows = 5;
+        const alienCols = 10;
+        let alienDirection = 1;
+        let alienSpeed = 1.5;
+
+        for (let r = 0; r < alienRows; r++) {
+            for (let c = 0; c < alienCols; c++) {
+                aliens.push({ x: c * 60 + 50, y: r * 40 + 50, width: 35, height: 25, status: 1 });
+            }
+        }
+
+        // Klawisze
+        document.addEventListener("keydown", (e) => {
+            if (e.code === "ArrowLeft" || e.key === "a") player.dx = -player.speed;
+            if (e.code === "ArrowRight" || e.key === "d") player.dx = player.speed;
+            if (e.code === "Space") shoot();
+        });
+        document.addEventListener("keyup", (e) => {
+            if (e.code === "ArrowLeft" || e.code === "ArrowRight" || e.key === "a" || e.key === "d") player.dx = 0;
+        });
+
+        function shoot() {
+            if (!gameActive) return;
+            // Ograniczenie strzałów - max 3 na ekranie na raz
+            if (bullets.length < 3) {
+                bullets.push({ x: player.x + player.width / 2 - 3, y: player.y, width: 6, height: 15, speed: 8 });
+            }
+        }
+
+        function drawPlayer() {
+            ctx.fillStyle = "#22d3ee";
+            ctx.fillRect(player.x, player.y + 10, player.width, player.height - 10);
+            ctx.fillRect(player.x + 20, player.y, 10, 10); // "Dziób" statku
+        }
+
+        function drawAliens() {
+            ctx.fillStyle = "#a3e635";
+            aliens.forEach(a => {
+                if (a.status === 1) ctx.fillRect(a.x, a.y, a.width, a.height);
+            });
+        }
+
+        function drawBullets() {
+            ctx.fillStyle = "#facc15";
+            bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
+        }
+
+        function update() {
+            if (!gameActive) return;
+
+            // Ruch gracza
+            player.x += player.dx;
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+
+            // Ruch pocisków
+            bullets.forEach((b, index) => {
+                b.y -= b.speed;
+                if (b.y < 0) bullets.splice(index, 1);
+            });
+
+            // Ruch i kolizje obcych
+            let hitWall = false;
+            let activeAliens = 0;
+
+            aliens.forEach(a => {
+                if (a.status === 1) {
+                    activeAliens++;
+                    a.x += alienSpeed * alienDirection;
+                    if (a.x + a.width >= canvas.width || a.x <= 0) hitWall = true;
+
+                    // Kolizja z pociskami
+                    bullets.forEach((b, bIndex) => {
+                        if (b.x < a.x + a.width && b.x + b.width > a.x && b.y < a.y + a.height && b.y + b.height > a.y) {
+                            a.status = 0; // Zabity
+                            bullets.splice(bIndex, 1); // Usuń pocisk
+                            score += 10;
+                            scoreEl.innerText = score;
+                            alienSpeed += 0.05; // Przyspiesz obcych po trafieniu
+                        }
+                    });
+
+                    // Kolizja obcego z graczem (Koniec gry)
+                    if (a.y + a.height >= player.y) endGame(false);
+                }
+            });
+
+            // Odbicie od ścian i obniżenie obcych
+            if (hitWall) {
+                alienDirection *= -1;
+                aliens.forEach(a => { if (a.status === 1) a.y += 20; });
+            }
+
+            // Wygrana
+            if (activeAliens === 0) endGame(true);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPlayer();
+            drawAliens();
+            drawBullets();
+        }
+
+        function loop() {
+            update();
+            draw();
+            if (gameActive) requestAnimationFrame(loop);
+        }
+
+        function endGame(isWin) {
+            gameActive = false;
+            document.getElementById("end-title").innerText = isWin ? "Ziemia Ocalona! 🎉" : "Inwazja Udana 💀";
+            document.getElementById("end-title").style.color = isWin ? "#a3e635" : "#ef4444";
+            document.getElementById("end-score").innerText = "Twój wynik: " + score;
+            modal.style.display = "flex";
+        }
+
+        loop();
+    </script>
+</body>
+</html>

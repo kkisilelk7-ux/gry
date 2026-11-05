@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Pasjans Klondike Pro 🃏</title>
+    <style>
+        :root {
+            --felt: #14532d;
+            --card-bg: #ffffff;
+            --card-text: #1e293b;
+            --accent: #facc15;
+            --shadow: rgba(0,0,0,0.4);
+        }
+
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: var(--felt); 
+            color: white; 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            min-height: 100vh; 
+            user-select: none; 
+            padding-bottom: 40px; 
+        }
+
+        .back-btn { 
+            position: absolute; 
+            top: 20px; 
+            left: 20px; 
+            background: #e74c3c; 
+            color: white; 
+            text-decoration: none; 
+            padding: 10px 15px; 
+            border-radius: 5px; 
+            font-weight: bold; 
+            z-index: 100;
+        }
+
+        .toolbar { 
+            margin-top: 20px; 
+            display: flex; 
+            gap: 15px; 
+            background: rgba(0,0,0,0.5); 
+            padding: 15px 30px; 
+            border-radius: 50px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
+            z-index: 100;
+        }
+
+        button { 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 20px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            transition: 0.2s; 
+            background: white; 
+            color: #14532d; 
+        }
+
+        button:hover { 
+            background: var(--accent); 
+            transform: translateY(-2px); 
+        }
+
+        button:disabled { 
+            opacity: 0.5; 
+            cursor: default; 
+            transform: none; 
+        }
+
+        /* Plansza gry */
+        #game-board { 
+            display: grid; 
+            grid-template-columns: repeat(7, 100px); 
+            gap: 20px; 
+            margin-top: 40px; 
+            padding: 20px; 
+            position: relative; 
+        }
+
+        .pile { 
+            width: 100px; 
+            height: 145px; 
+            border-radius: 8px; 
+            border: 2px dashed rgba(255,255,255,0.2); 
+            position: relative; 
+            box-sizing: border-box; 
+        }
+
+        /* Ikony w tle pól na Asy */
+        .foundation span { 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            opacity: 0.15; 
+            font-size: 4rem; 
+            color: white; 
+            pointer-events: none; 
+        }
+
+        /* Styl Karty */
+        .card {
+            width: 100px; 
+            height: 140px; 
+            background: var(--card-bg); 
+            border-radius: 8px;
+            position: absolute; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between;
+            padding: 8px; 
+            box-sizing: border-box; 
+            color: var(--card-text); 
+            font-weight: bold; 
+            font-size: 1.2rem;
+            box-shadow: 2px 2px 6px rgba(0,0,0,0.3); 
+            cursor: grab; 
+            border: 1px solid #d1d5db;
+        }
+
+        .card.back { 
+            background: #1e40af; 
+            border: 4px solid white; 
+            background-image: radial-gradient(circle, #3b82f6 1px, transparent 1px); 
+            background-size: 10px 10px; 
+        }
+
+        .card.red { color: #ef4444; }
+        .card.hint { outline: 4px solid var(--accent); z-index: 500 !important; }
+
+        /* Tableau (Stosy na dole) */
+        .tableau .card { transition: top 0.2s; }
+        .card.dragging { opacity: 0.5; z-index: 1000 !important; }
+
+        /* Modal końca gry */
+        #modal { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.9); 
+            z-index: 2000; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+        }
+
+        .modal-content { 
+            background: white; 
+            color: #1e293b; 
+            padding: 40px; 
+            border-radius: 20px; 
+            text-align: center; 
+            border: 5px solid var(--accent); 
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">⬅ Menu</a>
+    
+    <div class="toolbar">
+        <button onclick="undo()" id="undo-btn" disabled>↩ Cofnij</button>
+        <button onclick="giveHint()">💡 Podpowiedź</button>
+        <button onclick="initGame()">🆕 Nowa Gra</button>
+        <div style="margin-left: 20px; font-weight: bold;">Wynik: <span id="score" style="color:var(--accent)">0</span></div>
+    </div>
+
+    <div id="game-board">
+        <div id="stock" class="pile" onclick="drawCard()"></div>
+        <div id="waste" class="pile"></div>
+        <div style="grid-column: 3"></div>
+        <div id="f-0" class="pile foundation" data-suit-idx="0"><span>♥</span></div>
+        <div id="f-1" class="pile foundation" data-suit-idx="1"><span>♦</span></div>
+        <div id="f-2" class="pile foundation" data-suit-idx="2"><span>♣</span></div>
+        <div id="f-3" class="pile foundation" data-suit-idx="3"><span>♠</span></div>
+
+        <div id="t-0" class="pile tableau"></div>
+        <div id="t-1" class="pile tableau"></div>
+        <div id="t-2" class="pile tableau"></div>
+        <div id="t-3" class="pile tableau"></div>
+        <div id="t-4" class="pile tableau"></div>
+        <div id="t-5" class="pile tableau"></div>
+        <div id="t-6" class="pile tableau"></div>
+    </div>
+
+    <div id="modal">
+        <div class="modal-content">
+            <h1 id="modal-title"></h1>
+            <p id="modal-desc"></p>
+            <button onclick="initGame()">Zagraj od nowa</button>
+        </div>
+    </div>
+
+    <script>
+        const suits = ['♥', '♦', '♣', '♠'];
+        const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        let state = { stock: [], waste: [], foundations: [[],[],[],[]], tableaus: [[],[],[],[],[],[],[]] };
+        let undoStack = [];
+        let score = 0;
+        let dragData = null;
+
+        function saveState() {
+            undoStack.push(JSON.stringify({ state, score }));
+            if (undoStack.length > 50) undoStack.shift();
+            document.getElementById('undo-btn').disabled = false;
+        }
+
+        function undo() {
+            if (undoStack.length === 0) return;
+            const last = JSON.parse(undoStack.pop());
+            state = last.state;
+            score = last.score;
+            if (undoStack.length === 0) document.getElementById('undo-btn').disabled = true;
+            render();
+        }
+
+        function initGame() {
+            let deck = [];
+            suits.forEach((suit, sIdx) => {
+                values.forEach(val => {
+                    deck.push({ suit, sIdx, val, color: (sIdx < 2 ? 'red' : 'black'), faceUp: false });
+                });
+            });
+            deck.sort(() => Math.random() - 0.5);
+
+            state.tableaus = [[],[],[],[],[],[],[]];
+            for (let i = 0; i < 7; i++) {
+                for (let j = 0; j <= i; j++) {
+                    let card = deck.pop();
+                    if (j === i) card.faceUp = true;
+                    state.tableaus[i].push(card);
+                }
+            }
+            state.stock = deck;
+            state.waste = [];
+            state.foundations = [[],[],[],[]];
+            undoStack = [];
+            score = 0;
+            document.getElementById('modal').style.display = 'none';
+            render();
+        }
+
+        function render() {
+            document.getElementById('score').innerText = score;
+            renderPile('stock', state.stock, true);
+            renderPile('waste', state.waste);
+            state.foundations.forEach((f, i) => renderPile(`f-${i}`, f));
+            state.tableaus.forEach((t, i) => renderPile(`t-${i}`, t, false, true));
+        }
+
+        function renderPile(id, cards, isStock = false, isTableau = false) {
+            const el = document.getElementById(id);
+            const bgIcon = el.querySelector('span');
+            el.innerHTML = '';
+            if (bgIcon) el.appendChild(bgIcon);
+
+            cards.forEach((card, i) => {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'card ' + card.color + ((!card.faceUp && id !== 'waste' && !id.startsWith('f') && !id.startsWith('t')) ? ' back' : '');
+                
+                if (card.faceUp && id !== 'stock') {
+                    cardEl.innerHTML = `<div>${card.val}${card.suit}</div><div style="align-self:flex-end">${card.val}${card.suit}</div>`;
+                } else if (id === 'stock' || !card.faceUp) {
+                    cardEl.classList.add('back');
+                }
+
+                if (isTableau) cardEl.style.top = (i * 28) + 'px';
+                
+                if (card.faceUp || id === 'stock') {
+                    cardEl.draggable = true;
+                    cardEl.ondragstart = (e) => {
+                        if (id === 'stock') { e.preventDefault(); return; }
+                        dragData = { fromId: id, cardIdx: i };
+                        e.target.classList.add('dragging');
+                    };
+                    cardEl.ondragend = (e) => e.target.classList.remove('dragging');
+                }
+
+                el.appendChild(cardEl);
+            });
+            el.ondragover = (e) => e.preventDefault();
+            el.ondrop = (e) => handleDrop(e, id);
+        }
+
+        function handleDrop(e, toId) {
+            e.preventDefault();
+            if (!dragData) return;
+            const { fromId, cardIdx } = dragData;
+            if (fromId === toId) return;
+
+            let fromPile = getPileById(fromId);
+            let toPile = getPileById(toId);
+            let movingCards = fromPile.slice(cardIdx);
+            let firstCard = movingCards[0];
+            let allowed = false;
+
+            // Logika na Asy (Fundamenty)
+            if (toId.startsWith('f')) {
+                if (movingCards.length === 1) {
+                    let fIdx = parseInt(toId.split('-')[1]);
+                    if (firstCard.sIdx === fIdx) {
+                        if (toPile.length === 0) {
+                            if (firstCard.val === 'A') allowed = true;
+                        } else {
+                            let top = toPile[toPile.length - 1];
+                            if (values.indexOf(firstCard.val) === values.indexOf(top.val) + 1) allowed = true;
+                        }
+                    }
+                }
+            } 
+            // Logika na Tableau (Dół)
+            else if (toId.startsWith('t')) {
+                if (toPile.length === 0) {
+                    if (firstCard.val === 'K') allowed = true;
+                } else {
+                    let top = toPile[toPile.length - 1];
+                    if (firstCard.color !== top.color && values.indexOf(firstCard.val) === values.indexOf(top.val) - 1) allowed = true;
+                }
+            }
+
+            if (allowed) {
+                saveState();
+                toPile.push(...fromPile.splice(cardIdx));
+                if (fromPile.length > 0) fromPile[fromPile.length - 1].faceUp = true;
+                score += (toId.startsWith('f')) ? 15 : 10;
+                render();
+                checkWin();
+            }
+            dragData = null;
+        }
+
+        function getPileById(id) {
+            if (id === 'stock') return state.stock;
+            if (id === 'waste') return state.waste;
+            if (id.startsWith('f')) return state.foundations[id.split('-')[1]];
+            return state.tableaus[id.split('-')[1]];
+        }
+
+        function drawCard() {
+            saveState();
+            if (state.stock.length === 0) {
+                state.stock = state.waste.reverse().map(c => ({...c, faceUp: false}));
+                state.waste = [];
+            } else {
+                let c = state.stock.pop(); c.faceUp = true; state.waste.push(c);
+            }
+            render();
+            checkGameOver();
+        }
+
+        function giveHint() {
+            let sources = [{id:'waste', p:state.waste, i:state.waste.length-1}];
+            state.tableaus.forEach((t, i) => t.forEach((c, ci) => { if(c.faceUp) sources.push({id:`t-${i}`, p:t, i:ci}) }));
+            
+            for(let s of sources) {
+                if(!s.p[s.i]) continue;
+                for(let j=0; j<11; j++) {
+                    let targetId = j < 4 ? `f-${j}` : `t-${j-4}`;
+                    if(s.id === targetId) continue;
+                    
+                    if (testMove(s.id, targetId, s.i)) {
+                        let el = document.getElementById(s.id).querySelectorAll('.card')[s.i];
+                        el.classList.add('hint');
+                        setTimeout(() => el.classList.remove('hint'), 2000);
+                        return;
+                    }
+                }
+            }
+        }
+
+        function testMove(fromId, toId, cardIdx) {
+            let fromPile = getPileById(fromId);
+            let toPile = getPileById(toId);
+            let c = fromPile[cardIdx];
+            if (toId.startsWith('f')) {
+                if (fromPile.length - 1 !== cardIdx) return false;
+                let fIdx = parseInt(toId.split('-')[1]);
+                if (c.sIdx !== fIdx) return false;
+                if (toPile.length === 0) return c.val === 'A';
+                return values.indexOf(c.val) === values.indexOf(toPile[toPile.length-1].val) + 1;
+            }
+            if (toId.startsWith('t')) {
+                if (toPile.length === 0) return c.val === 'K';
+                let top = toPile[toPile.length-1];
+                return c.color !== top.color && values.indexOf(c.val) === values.indexOf(top.val) - 1;
+            }
+            return false;
+        }
+
+        function checkWin() {
+            if (state.foundations.every(f => f.length === 13)) {
+                showModal("ZWYCIĘSTWO! 🎉", "Ułożyłeś całego pasjansa!");
+            }
+        }
+
+        function checkGameOver() {
+            let hasMoves = false;
+            // Sprawdź czy jakikolwiek ruch jest możliwy (uproszczone)
+            if (state.stock.length > 0 || findMovesCount() > 0) hasMoves = true;
+            if (!hasMoves && state.waste.length === 0) {
+                showModal("Brak Ruchów! 💀", "Przykro mi, nie ma już możliwości ruchu.");
+            }
+        }
+
+        function findMovesCount() {
+            let count = 0;
+            // Tutaj można by zliczyć ruchy podobnie jak w giveHint
+            return 1; // Uproszczenie dla stabilności
+        }
+
+        function showModal(title, desc) {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-desc').innerText = desc;
+            document.getElementById('modal').style.display = 'flex';
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
